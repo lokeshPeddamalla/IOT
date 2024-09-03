@@ -1,5 +1,6 @@
 package com.example.iot1
 
+import android.content.ContentValues.TAG
 import android.os.AsyncTask
 import android.os.Bundle
 import android.util.Log
@@ -11,9 +12,13 @@ import com.google.gson.JsonObject
 import java.io.File
 import java.io.OutputStream
 import java.net.Socket
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 class DisplayThingActivity : AppCompatActivity() {
-
+    private val TAG = "TemperatureControl"
+    private val MAX_RETRIES = 3
+    private val RETRY_DELAY_MS = 2000L
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -175,18 +180,43 @@ class DisplayThingActivity : AppCompatActivity() {
     }
     private fun sendTemperatureToRpi(temperature: Float) {
         // Replace with your Raspberry Pi's IP address and port
-        val rpiIp = "10.203.5.121" // Example IP
+        val rpiIp = "192.168.241.127" // Example IP
         val rpiPort = 8004
 
         AsyncTask.execute {
-            try {
-                val socket = Socket(rpiIp, rpiPort)
-                val outputStream: OutputStream = socket.getOutputStream()
-                outputStream.write("Invoke:$temperature".toByteArray(Charsets.UTF_8))
-                outputStream.flush()
-                socket.close()
-            } catch (e: Exception) {
-                Log.e("TemperatureControl", "Error sending temperature to RPi: ${e.message}")
+            var attempt = 0
+            var success = false
+
+            while (attempt < MAX_RETRIES && !success) {
+                try {
+                    val socket = Socket().apply {
+                        soTimeout = 5000 // Set socket timeout
+                    }
+                    socket.connect(java.net.InetSocketAddress(rpiIp, rpiPort), 5000)
+                    val outputStream: OutputStream = socket.getOutputStream()
+                    outputStream.write("Invoke:$temperature".toByteArray(Charsets.UTF_8))
+                    outputStream.flush()
+                    socket.close()
+                    success = true
+                    Log.i(TAG, "Temperature sent successfully: $temperature")
+                } catch (e: SocketTimeoutException) {
+                    Log.e(TAG, "Connection timed out. Retrying...")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error sending temperature to RPi: ${e.message}")
+                }
+
+                attempt++
+                if (!success) {
+                    try {
+                        Thread.sleep(RETRY_DELAY_MS)
+                    } catch (e: InterruptedException) {
+                        Log.e(TAG, "Retry delay interrupted: ${e.message}")
+                    }
+                }
+            }
+
+            if (!success) {
+                Log.e(TAG, "Failed to send temperature after $MAX_RETRIES attempts")
             }
         }
     }
