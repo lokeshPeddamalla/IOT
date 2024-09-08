@@ -180,7 +180,7 @@ class DisplayThingActivity : AppCompatActivity() {
     }
     private fun sendTemperatureToRpi(temperature: Float) {
         // Replace with your Raspberry Pi's IP address and port
-        val rpiIp = "192.168.241.127" // Example IP
+        val rpiIp = "10.203.1.142" // Example IP
         val rpiPort = 8004
 
         AsyncTask.execute {

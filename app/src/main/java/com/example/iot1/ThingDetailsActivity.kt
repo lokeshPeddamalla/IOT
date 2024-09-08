@@ -38,7 +38,7 @@ class ThingDetailsActivity : AppCompatActivity() {
     private lateinit var dbHelper: DBHelper
     private var generatedOtp: String? = null
 
-    private val raspberryPiIp = "10.203.5.121"
+    private val raspberryPiIp = "10.203.1.142"
     private val port = 12345
 
     override fun onCreate(savedInstanceState: Bundle?) {
