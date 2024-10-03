@@ -1,7 +1,5 @@
 package com.example.iot1
 
-import UserDetails
-import ValidationResult
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
@@ -12,9 +10,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import com.example.iot1.databinding.ActivityMainBinding
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import java.security.MessageDigest
 
 class MainActivity : AppCompatActivity() {
@@ -30,11 +25,9 @@ class MainActivity : AppCompatActivity() {
             val password = binding.etPassword.text.toString().trim()
 
             if (username.isNotEmpty() && password.isNotEmpty()) {
-                if (isNetworkAvailable()) {
-                    validateUserOnline(username, password)
-                } else {
+
                     validateUserOffline(username, password)
-                }
+
             } else {
                 Toast.makeText(this, "Please enter both username and password", Toast.LENGTH_SHORT).show()
             }
@@ -50,37 +43,37 @@ class MainActivity : AppCompatActivity() {
         return connectivityManager.activeNetworkInfo?.isConnected == true
     }
 
-    private fun validateUserOnline(username: String, password: String) {
-        try {
-            Log.d("validateUserOnline", "Starting online validation for user: $username")
-            val userDetails = UserDetails(username, password)
-            RetrofitClient.instance.validateUser(userDetails).enqueue(object : Callback<ValidationResult> {
-                override fun onResponse(call: Call<ValidationResult>, response: Response<ValidationResult>) {
-                    if (response.isSuccessful) {
-                        val result = response.body()
-                        if (result?.valid == true) {
-                            Log.d("Validation", "User is valid (online)")
-                            navigateToAvailableThingsActivity()
-                        } else {
-                            Log.d("Validation", "Invalid user (online)")
-                            Toast.makeText(this@MainActivity, "Invalid Credentials", Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        Log.e("Validation", "Response is not successful (online): ${response.errorBody()?.string()}")
-                        validateUserOffline(username, password)
-                    }
-                }
-
-                override fun onFailure(call: Call<ValidationResult>, t: Throwable) {
-                    Log.e("Validation", "Error (online): ${t.message}")
-                    validateUserOffline(username, password)
-                }
-            })
-        } catch (e: Exception) {
-            Log.e("validateUserOnline", "Exception occurred: ${e.message}", e)
-            validateUserOffline(username, password)
-        }
-    }
+//    private fun validateUserOnline(username: String, password: String) {
+//        try {
+//            Log.d("validateUserOnline", "Starting online validation for user: $username")
+//            val userDetails = UserDetails(username, password)
+//            RetrofitClient.instance.validateUser(userDetails).enqueue(object : Callback<ValidationResult> {
+//                override fun onResponse(call: Call<ValidationResult>, response: Response<ValidationResult>) {
+//                    if (response.isSuccessful) {
+//                        val result = response.body()
+//                        if (result?.valid == true) {
+//                            Log.d("Validation", "User is valid (online)")
+//                            navigateToAvailableThingsActivity()
+//                        } else {
+//                            Log.d("Validation", "Invalid user (online)")
+//                            Toast.makeText(this@MainActivity, "Invalid Credentials", Toast.LENGTH_SHORT).show()
+//                        }
+//                    } else {
+//                        Log.e("Validation", "Response is not successful (online): ${response.errorBody()?.string()}")
+//                        validateUserOffline(username, password)
+//                    }
+//                }
+//
+//                override fun onFailure(call: Call<ValidationResult>, t: Throwable) {
+//                    Log.e("Validation", "Error (online): ${t.message}")
+//                    validateUserOffline(username, password)
+//                }
+//            })
+//        } catch (e: Exception) {
+//            Log.e("validateUserOnline", "Exception occurred: ${e.message}", e)
+//            validateUserOffline(username, password)
+//        }
+//    }
 
     private fun validateUserOffline(username: String, password: String) {
         val userDetails = getUserCredentials()

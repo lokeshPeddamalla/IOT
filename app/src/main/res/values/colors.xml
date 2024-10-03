@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+
+    <color name="colorAccent">#03DAC5</color>
+    <color name="colorSurface">#FFFFFF</color> <!-- Required for Material Components -->
+    <color name="colorOnPrimary">#FFFFFF</color>
+    <color name="colorOnSurface">#000000</color>
+    <color name="black">#000000</color> <!-- Hex code for black -->
+
 </resources>

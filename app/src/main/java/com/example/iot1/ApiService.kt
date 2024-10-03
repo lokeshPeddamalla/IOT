@@ -12,27 +12,20 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
-data class UserDetails(val username: String, val userpassword: String)
-data class RegisterUserDetails(val username: String, val email: String, val mobileNum: String, val registrationKey: String, val password: String)
-data class ThingDetails(val thingName: String, val thingId: String, val thingKey: String, val registrationkey: String)
+data class RegisterUserDetails(val username: String, val email: String, val mobileNum: String, val thingId: String)
+data class ThingDetails(val thingName: String, val thingId: String, val thingKey: String)
 data class ValidationResult(val valid: Boolean)
 data class RegistrationResult(val registered: Boolean)
-data class KeyDetails(val thingId: String, val key: String) // Added data class for verify_key API
 data class UserIpResponse(val thingIp: String?)
 
 
 interface ApiService {
-    @POST("/validate_user")
-    fun validateUser(@Body userDetails: UserDetails): Call<ValidationResult>
 
     @POST("/register_user")
     fun registerUser(@Body registerUserDetails: RegisterUserDetails): Call<RegistrationResult>
 
     @POST("/register_thing")
     fun registerThing(@Body thingDetails: ThingDetails): Call<RegistrationResult>
-
-    @POST("/verify_key")
-    fun verifyKey(@Body keyDetails: KeyDetails): Call<ValidationResult>
 
     @GET("/get_user_ip")
     fun getUserIp(@Query("thingId") thingId: String): Call<UserIpResponse>

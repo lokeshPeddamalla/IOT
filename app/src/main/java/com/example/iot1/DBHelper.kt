@@ -14,8 +14,7 @@ class DBHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null
         const val COLUMN_THING_NAME = "thing_name"
         private const val COLUMN_THING_ID = "thing_id"
         private const val COLUMN_THING_KEY = "thing_key"
-        private const val COLUMN_REGISTRATION_KEY = "registration_key"
-        private const val COLUMN_IP_ADDRESS = "ip_address"  // New IP address column
+        const val COLUMN_IP_ADDRESS = "ip_address"  // New IP address column
     }
 
     override fun onCreate(db: SQLiteDatabase?) {
@@ -24,7 +23,6 @@ class DBHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null
                 + COLUMN_THING_NAME + " TEXT, "
                 + COLUMN_THING_ID + " TEXT, "
                 + COLUMN_THING_KEY + " TEXT, "
-                + COLUMN_REGISTRATION_KEY + " TEXT, "
                 + COLUMN_IP_ADDRESS + " TEXT" + ")")  // Include the new IP address column
         db?.execSQL(createTable)
     }
@@ -39,7 +37,6 @@ class DBHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null
         thingName: String,
         thingId: String,
         thingKey: String,
-        registrationKey: String,
         ipAddress: String
     ): Long {
         val db = this.writableDatabase
@@ -47,7 +44,6 @@ class DBHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null
             put(COLUMN_THING_NAME, thingName)
             put(COLUMN_THING_ID, thingId)
             put(COLUMN_THING_KEY, thingKey)
-            put(COLUMN_REGISTRATION_KEY, registrationKey)
             put(COLUMN_IP_ADDRESS, ipAddress)  // Save the IP address
         }
         return db.insert(TABLE_NAME, null, contentValues)

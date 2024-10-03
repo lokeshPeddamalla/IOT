@@ -54,7 +54,7 @@ class AvailableThingsActivity : AppCompatActivity() {
 
         val cursor = db.query(
             DBHelper.TABLE_NAME,
-            arrayOf(DBHelper.COLUMN_THING_NAME),
+            arrayOf(DBHelper.COLUMN_THING_NAME, DBHelper.COLUMN_IP_ADDRESS), // Fetch IP address
             null,
             null,
             null,
@@ -65,7 +65,8 @@ class AvailableThingsActivity : AppCompatActivity() {
         if (cursor.moveToFirst()) {
             do {
                 val thingName = cursor.getString(cursor.getColumnIndexOrThrow(DBHelper.COLUMN_THING_NAME))
-                thingList.add(Thing(thingName))
+                val ipAddress = cursor.getString(cursor.getColumnIndexOrThrow(DBHelper.COLUMN_IP_ADDRESS)) // Get IP address
+                thingList.add(Thing(thingName, ipAddress)) // Add IP address to Thing
             } while (cursor.moveToNext())
         }
 
@@ -79,6 +80,7 @@ class AvailableThingsActivity : AppCompatActivity() {
                 // Handle item click here
                 val intent = Intent(this, DisplayThingActivity::class.java)
                 intent.putExtra("thing_name", thing.thingName)
+                intent.putExtra("ip_address", thing.ipAddress) // Pass IP address to the next activity
                 startActivity(intent)
             }
             binding.recyclerViewThings.adapter = thingAdapter
@@ -87,4 +89,5 @@ class AvailableThingsActivity : AppCompatActivity() {
             binding.recyclerViewThings.visibility = View.GONE
         }
     }
+
 }

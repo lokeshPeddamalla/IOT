@@ -63,11 +63,11 @@
                 android:textSize="11sp"
                 android:paddingStart="5dp"/>
             <EditText
-                android:id="@+id/et_Rkey"
+                android:id="@+id/et_thingId"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="text"
-                android:hint="Registration Key"/>
+                android:hint="Thing ID "/>
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

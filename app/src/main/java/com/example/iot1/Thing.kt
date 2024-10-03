@@ -7,7 +7,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
-data class Thing(val thingName: String)
+data class Thing(val thingName: String, val ipAddress: String)
 
 class ThingAdapter(
     private val thingList: List<Thing>,

@@ -1,16 +1,13 @@
 package com.example.iot1
 
-import ApiService
 import DBHelper
-import KeyDetails
 import RegistrationResult
+import RetrofitClient
 import ThingDetails
 import UserIpResponse
-import ValidationResult
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
-import android.os.AsyncTask
 import android.os.Bundle
 import android.os.Environment
 import android.util.Log
@@ -29,7 +26,6 @@ import retrofit2.Callback
 import retrofit2.Response
 import java.io.File
 import java.io.FileOutputStream
-import java.io.OutputStream
 import java.net.Socket
 import kotlin.random.Random
 
@@ -38,7 +34,7 @@ class ThingDetailsActivity : AppCompatActivity() {
     private lateinit var dbHelper: DBHelper
     private var generatedOtp: String? = null
 
-    private val raspberryPiIp = "10.203.1.142"
+    private val raspberryPiIp = "10.203.1.88"
     private val port = 12345
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,10 +88,8 @@ class ThingDetailsActivity : AppCompatActivity() {
                 val thingName = binding.etThingname.text.toString()
                 val UID = binding.etThingId.text.toString()
                 val Tkey = binding.etThingKey.text.toString()
-                val registrationKey = binding.etRegisterKey.text.toString()
-
                 if (isNetworkAvailable()) {
-                    registerThing(thingName, UID, Tkey, registrationKey)
+                    registerThing(thingName, UID, Tkey)
                 } else {
                     Toast.makeText(
                         this,
@@ -116,72 +110,52 @@ class ThingDetailsActivity : AppCompatActivity() {
     }
 
     // Register the thing with the backend server
-    private fun registerThing(thingName: String, thingId: String, thingKey: String, registrationKey: String) {
-        val keyDetails = KeyDetails(thingId, thingKey)
+    private fun registerThing(thingName: String, thingId: String, thingKey: String) {
+        val thingDetails = ThingDetails(thingName, thingId, thingKey)
 
-        // Step 1: Verify the key
-        RetrofitClient.instance.verifyKey(keyDetails).enqueue(object : Callback<ValidationResult> {
-            override fun onResponse(call: Call<ValidationResult>, response: Response<ValidationResult>) {
+        // Step 1: Directly register the thing (no separate key verification needed)
+        RetrofitClient.instance.registerThing(thingDetails).enqueue(object : Callback<RegistrationResult> {
+            override fun onResponse(call: Call<RegistrationResult>, response: Response<RegistrationResult>) {
                 if (response.isSuccessful) {
-                    val result = response.body()
-                    if (result?.valid == true) {
-                        // Key is valid, proceed with registration
-                        Log.d("ThingDetails", "Key verified successfully (online)")
+                    val registrationResult = response.body()
+                    if (registrationResult?.registered == true) {
+                        Log.d("ThingDetails", "Thing registered successfully (online)")
 
-                        val thingDetails = ThingDetails(thingName, thingId, thingKey, registrationKey)
-                        RetrofitClient.instance.registerThing(thingDetails).enqueue(object : Callback<RegistrationResult> {
-                            override fun onResponse(call: Call<RegistrationResult>, response: Response<RegistrationResult>) {
-                                if (response.isSuccessful) {
-                                    val registrationResult = response.body()
-                                    if (registrationResult?.registered == true) {
-                                        Log.d("ThingDetails", "Thing registered successfully (online)")
-                                        // Save to local database
-                                        saveThingDetailsLocally(thingName, thingId, thingKey, registrationKey)
-                                        // Store the file on the Android device
-                                        receiveFileFromServer()
-                                        Toast.makeText(this@ThingDetailsActivity, "Thing registered successfully", Toast.LENGTH_SHORT).show()
-                                        // Navigate back to AvailableThingsActivity
-                                        val intent = Intent(this@ThingDetailsActivity, AvailableThingsActivity::class.java)
-                                        startActivity(intent)
-                                        finish()
-                                    } else {
-                                        Log.d("ThingDetails", "Registration failed (online)")
-                                        Toast.makeText(this@ThingDetailsActivity, "Registration failed", Toast.LENGTH_SHORT).show()
-                                    }
-                                } else {
-                                    Log.e("ThingDetails", "Response is not successful (online): ${response.errorBody()?.string()}")
-                                    Toast.makeText(this@ThingDetailsActivity, "Registration failed", Toast.LENGTH_SHORT).show()
-                                }
-                            }
+                        // Save to local database after successful registration
+                        saveThingDetailsLocally(thingName, thingId, thingKey)
 
-                            override fun onFailure(call: Call<RegistrationResult>, t: Throwable) {
-                                Log.e("ThingDetails", "Error (online): ${t.message}")
-                                Toast.makeText(this@ThingDetailsActivity, "Registration failed", Toast.LENGTH_SHORT).show()
-                            }
-                        })
+                        // Optionally, retrieve and store any files from the server
+                        receiveFileFromServer()
+
+                        // Notify user and navigate back to AvailableThingsActivity
+                        Toast.makeText(this@ThingDetailsActivity, "Thing registered successfully", Toast.LENGTH_SHORT).show()
+                        val intent = Intent(this@ThingDetailsActivity, AvailableThingsActivity::class.java)
+                        startActivity(intent)
+                        finish()
                     } else {
-                        Log.d("ThingDetails", "Key verification failed (online)")
-                        Toast.makeText(this@ThingDetailsActivity, "Key verification failed", Toast.LENGTH_SHORT).show()
+                        Log.d("ThingDetails", "Registration failed (online)")
+                        Toast.makeText(this@ThingDetailsActivity, "Registration failed", Toast.LENGTH_SHORT).show()
                     }
                 } else {
                     Log.e("ThingDetails", "Response is not successful (online): ${response.errorBody()?.string()}")
-                    Toast.makeText(this@ThingDetailsActivity, "Key verification failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@ThingDetailsActivity, "Registration failed", Toast.LENGTH_SHORT).show()
                 }
             }
 
-            override fun onFailure(call: Call<ValidationResult>, t: Throwable) {
+            override fun onFailure(call: Call<RegistrationResult>, t: Throwable) {
                 Log.e("ThingDetails", "Error (online): ${t.message}")
-                Toast.makeText(this@ThingDetailsActivity, "Key verification failed", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@ThingDetailsActivity, "Registration failed", Toast.LENGTH_SHORT).show()
             }
         })
     }
 
+
     // Save thing details to the local database
-    private fun saveThingDetailsLocally(thingName: String, thingId: String, thingKey: String, registrationKey: String) {
+    private fun saveThingDetailsLocally(thingName: String, thingId: String, thingKey: String) {
         fetchUserIp(thingId, object : IpCallback {
             override fun onIpFetched(ipAddress: String) {
                 // Use the fetched IP address in your save function
-                val insertResult = dbHelper.insertThing(thingName, thingId, thingKey, registrationKey, ipAddress)
+                val insertResult = dbHelper.insertThing(thingName, thingId, thingKey, ipAddress)
                 if (insertResult != -1L) {
                     Log.d("ThingDetails", "Thing details saved locally with IP: $ipAddress")
                     refreshUI()

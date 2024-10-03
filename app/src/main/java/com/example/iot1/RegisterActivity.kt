@@ -67,11 +67,12 @@ class RegisterActivity : AppCompatActivity() {
                 val username = binding.etUsername.text.toString().trim()
                 val email = binding.etEmail.text.toString().trim()
                 val mobileNum = binding.etMobileNumber.text.toString().trim()
-                val registrationKey = binding.etRkey.text.toString().trim()
+                val thingId = binding.etThingId.text.toString().trim()
                 val password = binding.etPassword.text.toString().trim()
 
                 if (isNetworkAvailable()) {
-                    registerUserOnline(username, email, mobileNum, registrationKey, password)
+                    registerUserOnline(username, email, mobileNum, thingId)
+                    saveUserCredentialsOffline(username, password, thingId)
                 } else {
                     Toast.makeText(this, "No internet connection. Registration failed.", Toast.LENGTH_SHORT).show()
                 }
@@ -86,15 +87,14 @@ class RegisterActivity : AppCompatActivity() {
         return connectivityManager.activeNetworkInfo?.isConnected == true
     }
 
-    private fun registerUserOnline(username: String, email: String, mobileNum: String, registrationKey: String, password: String) {
-        val userDetails = RegisterUserDetails(username, email, mobileNum, registrationKey, password)
+    private fun registerUserOnline(username: String, email: String, mobileNum: String, thingId: String) {
+        val userDetails = RegisterUserDetails(username, email, mobileNum, thingId)
         RetrofitClient.instance.registerUser(userDetails).enqueue(object : Callback<RegistrationResult> {
             override fun onResponse(call: Call<RegistrationResult>, response: Response<RegistrationResult>) {
                 if (response.isSuccessful) {
                     val result = response.body()
                     if (result?.registered == true) {
                         Log.d("Registration", "User registered successfully (online)")
-                        saveUserCredentials(username, password, registrationKey)
                         Toast.makeText(this@RegisterActivity, "Registration Successful", Toast.LENGTH_SHORT).show()
                         startActivity(Intent(this@RegisterActivity, MainActivity::class.java))
                     } else {
@@ -113,10 +113,13 @@ class RegisterActivity : AppCompatActivity() {
             }
         })
     }
-    private fun saveUserCredentials(username: String, password: String, registrationKey: String) {
+
+    // This method saves user credentials offline in encrypted shared preferences
+    private fun saveUserCredentialsOffline(username: String, password: String, thingId: String) {
         val hashedPassword = hashWithSHA256(password)
         val hashedUsername = hashWithSHA256(username)
-        val hashedRegistrationKey = hashWithSHA256(registrationKey)
+        val hashedThingId = hashWithSHA256(thingId)
+
         val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
         val sharedPreferences = EncryptedSharedPreferences.create(
             "user_credentials",
@@ -125,17 +128,21 @@ class RegisterActivity : AppCompatActivity() {
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
+
         sharedPreferences.edit().apply {
             putString("username", hashedUsername)
-            putString("password", hashedPassword)
-            putString("registration_key", hashedRegistrationKey)
+            putString("password", hashedPassword)  // Save hashed password offline
+            putString("registration_key", hashedThingId)
             apply()
         }
+        Log.d("Registration", "User credentials saved offline securely")
     }
+
     private fun hashWithSHA256(input: String): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
     }
+
     private suspend fun sendSms(): String? {
         return try {
             val random = Random.nextInt(0, 9999).toString().padStart(4, '0')

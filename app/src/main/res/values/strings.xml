@@ -1,3 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">IOT1</string>
+    <!-- Other strings for your app -->
+    <string name="app_name">One-IoT</string>
+
+    <!-- Mode and Fan Options -->
+    <string-array name="mode_options">
+        <item>Cool</item>
+        <item>Dry</item>
+    </string-array>
+
+    <string-array name="fan_options">
+        <item>Low</item>
+        <item>Medium</item>
+        <item>High</item>
+    </string-array>
 </resources>

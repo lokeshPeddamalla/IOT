@@ -56,10 +56,10 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     implementation(libs.mysql.connector.java.v8030)
     implementation ("androidx.cardview:cardview:1.0.0")
-
     implementation ("com.squareup.retrofit2:retrofit:2.9.0")
     implementation ("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation ("com.squareup.okhttp3:okhttp:4.9.0")
     implementation ("androidx.security:security-crypto:1.1.0-alpha03")
     implementation ("com.squareup.okhttp3:logging-interceptor:4.10.0")
+    implementation(libs.gson)
 }

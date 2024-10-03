@@ -2,7 +2,10 @@
     <!-- Base application theme. -->
     <style name="Base.Theme.IOT1" parent="Theme.AppCompat.Light.NoActionBar">
         <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="colorSurface">@color/colorSurface</item>
+        <item name="colorOnPrimary">@color/colorOnPrimary</item>
+        <item name="colorOnSurface">@color/colorOnSurface</item>
     </style>
 
     <style name="Theme.IOT1" parent="Base.Theme.IOT1" />
