@@ -1,106 +1,177 @@
 package com.example.iot1
 
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothSocket
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
-import android.os.FileObserver
+import android.util.Log
 import android.widget.Button
 import android.widget.EditText
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.UUID
 
 class BluetoothMainScreen : AppCompatActivity() {
-    private lateinit var thingNameEditText: EditText
-    private lateinit var thingKeyEditText: EditText
-    private lateinit var thingIdEditText: EditText
-    private lateinit var sendButton: Button
-    private lateinit var fileObserver: FileObserver
+    private lateinit var bluetoothAdapter: BluetoothAdapter
+    private lateinit var bluetoothSocket: BluetoothSocket
+    private var outputStream: OutputStream? = null
+    private var inputStream: InputStream? = null
+    private var isConnected = false
 
+    private lateinit var et_thing_name: EditText
+    private lateinit var et_thing_key: EditText
+    private lateinit var et_thing_Id: EditText
+    private lateinit var buttonSend: Button
+
+    private val deviceAddress = "D8:3A:DD:9F:DC:16"
+    private val uuid: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_bluetooth_main_screen)
-        thingNameEditText = findViewById(R.id.bt_et_thingName)
-        thingKeyEditText = findViewById(R.id.bt_et_thingKey)
-        thingIdEditText = findViewById(R.id.bt_et_thingId)
-        sendButton = findViewById(R.id.bt_submit)
 
-        // Start monitoring the Downloads directory for the ac.json file
-        monitorBluetoothDirectory()
+        et_thing_name = findViewById(R.id.bt_et_thingName)
+        et_thing_key = findViewById(R.id.bt_et_thingKey)
+        et_thing_Id = findViewById(R.id.bt_et_thingId)
 
-        sendButton.setOnClickListener {
-            sendButton.isEnabled = false // Disable the button while sending
+        buttonSend = findViewById(R.id.bt_submit)
 
-            val dummyFile = createDummyFile()
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        connectToDevice()
 
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_STREAM, dummyFileUri(dummyFile))
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-
-            intent.setPackage("com.android.bluetooth")
-
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(Intent.createChooser(intent, "Share file"))
-                sendButton.postDelayed({
-                    sendButton.isEnabled = true
-                }, 3000) // Adjust delay as needed
-            } else {
-                sendButton.isEnabled = true
-                Toast.makeText(this, "Bluetooth sharing not available", Toast.LENGTH_SHORT).show()
-            }
+        buttonSend.setOnClickListener {
+            sendMessage()
         }
     }
 
-    private fun createDummyFile(): File {
-        val storageDir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-        val dummyFile = File(storageDir, "data.txt")
 
-        val thingKey = thingKeyEditText.text.toString()
-        val thingId = thingIdEditText.text.toString()
+    private fun sendMessage() {
+        if (isConnected && outputStream != null) {
+            val thingId = et_thing_Id.text.toString()
+            val thingKey = et_thing_key.text.toString()
 
-        val fileContent = """
-            Thing Key: $thingKey
-            Thing Id: $thingId
-        """.trimIndent()
+            if (thingId.isNotEmpty() && thingKey.isNotEmpty()) {
+                try {
+                    val message = "thingId: $thingId thingKey: $thingKey"
+                    outputStream!!.write(message.toByteArray())
+                    startReceivingFile() // Call to receive the file
 
-        dummyFile.writeText(fileContent)
-        return dummyFile
-    }
-
-    private fun dummyFileUri(file: File): Uri {
-        return FileProvider.getUriForFile(
-            this,
-            "com.example.IOT1.provider",
-            file
-        )
-    }
-
-    private fun monitorBluetoothDirectory() {
-        val pathToMonitor = "/storage/sdcard0/Download/Bluetooth/"
-
-        fileObserver = object : FileObserver(pathToMonitor, CREATE) {
-            override fun onEvent(event: Int, path: String?) {
-                if (path != null && path.endsWith("ac.json")) {
-                    // ac.json file has been created, stop monitoring
-                    fileObserver.stopWatching()
-
-                    // Start the BluetoothDisplayThingActivity
-                    val intent = Intent(this@BluetoothMainScreen, BluetoothDisplayThingActivity::class.java)
+                    // Pass the Bluetooth device address and output stream to the next activity
+                    val intent = Intent(this@BluetoothMainScreen, BluetoothDisplayThingActivity::class.java).apply {
+                        putExtra("bluetooth_device_address", deviceAddress)
+                    }
                     startActivity(intent)
+
+                } catch (e: IOException) {
+                    e.printStackTrace()
                 }
             }
         }
+    }
 
-        // Start watching the directory
-        fileObserver.startWatching()
+
+    @SuppressLint("MissingPermission")
+    private fun connectToDevice() {
+        val device: BluetoothDevice = bluetoothAdapter.getRemoteDevice(deviceAddress)
+        try {
+            bluetoothSocket = device.createRfcommSocketToServiceRecord(uuid)
+            bluetoothSocket.connect()
+            outputStream = bluetoothSocket.outputStream
+            inputStream = bluetoothSocket.inputStream
+            isConnected = true
+        } catch (e: IOException) {
+            e.printStackTrace()
+            isConnected = false
+        }
+    }
+
+    @OptIn(DelicateCoroutinesApi::class)
+    private fun startReceivingFile() {
+        GlobalScope.launch(Dispatchers.IO) { // Run in the IO context
+            receiveFile()
+        }
+    }
+
+    @SuppressLint("SetTextI18n")
+    private fun receiveFile() {
+        if (isConnected && inputStream != null) {
+            if (!isExternalStorageWritable()) {
+                Log.e("ReceiveFile", "External storage is not writable")
+                return
+            }
+
+            var fileOutputStream: FileOutputStream? = null
+            try {
+                // Define the path to save the file in the app's external files directory
+                val file = File(getExternalFilesDir(null), "manifest.json") // Safe location
+
+                // Log the file path
+                Log.d("ReceiveFile", "File will be saved to: ${file.absolutePath}")
+
+                // Use FileOutputStream to write to the specified file
+                fileOutputStream = FileOutputStream(file)
+                Log.d("ReceiveFile", "FileOutputStream created successfully")
+
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                Log.d("ReceiveFile", "Starting to read from inputStream")
+
+                // Read data from inputStream and write to file
+                while (true) {
+                    try {
+                        bytesRead = inputStream!!.read(buffer)
+                        if (bytesRead == -1) break // End of stream
+                        fileOutputStream.write(buffer, 0, bytesRead)
+                        Log.d("ReceiveFile", "Written $bytesRead bytes to file")
+                    } catch (e: IOException) {
+                        Log.e("ReceiveFile", "Error reading from inputStream: ${e.message}")
+                        break // Break out of the loop on read error
+                    }
+                }
+
+                Log.d("ReceiveFile", "File receiving completed successfully")
+
+            } catch (e: IOException) {
+                Log.e("ReceiveFile", "Error receiving file: ${e.message}")
+            } catch (e: Exception) {
+                Log.e("ReceiveFile", "Unexpected error: ${e.message}")
+            } finally {
+                // Close the FileOutputStream safely in the finally block
+                try {
+                    fileOutputStream?.close()
+                    Log.d("ReceiveFile", "FileOutputStream closed successfully")
+                } catch (e: IOException) {
+                    Log.e("ReceiveFile", "Error closing FileOutputStream: ${e.message}")
+                }
+            }
+        } else {
+            Log.d("ReceiveFile", "Not connected or inputStream is null")
+        }
+    }
+
+    private fun isExternalStorageWritable(): Boolean {
+        val state = Environment.getExternalStorageState()
+        return Environment.MEDIA_MOUNTED == state
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        fileObserver.stopWatching() // Stop watching the directory when the activity is destroyed
+        try {
+            if (isConnected) {
+                bluetoothSocket.close()
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
     }
 }
