@@ -3,6 +3,7 @@ package com.example.iot1
 import RegisterUserDetails
 import RegistrationResult
 import RetrofitClient
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
@@ -22,6 +23,8 @@ import kotlinx.coroutines.withContext
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.security.MessageDigest
 import kotlin.random.Random
 
@@ -69,9 +72,10 @@ class RegisterActivity : AppCompatActivity() {
                 val mobileNum = binding.etMobileNumber.text.toString().trim()
                 val thingId = binding.etThingId.text.toString().trim()
                 val password = binding.etPassword.text.toString().trim()
+                val mobileIp = getLocalIpAddress()
 
                 if (isNetworkAvailable()) {
-                    registerUserOnline(username, email, mobileNum, thingId)
+                    registerUserOnline(username, email, mobileNum, thingId, mobileIp)
                     saveUserCredentialsOffline(username, password, thingId)
                 } else {
                     Toast.makeText(this, "No internet connection. Registration failed.", Toast.LENGTH_SHORT).show()
@@ -87,8 +91,8 @@ class RegisterActivity : AppCompatActivity() {
         return connectivityManager.activeNetworkInfo?.isConnected == true
     }
 
-    private fun registerUserOnline(username: String, email: String, mobileNum: String, thingId: String) {
-        val userDetails = RegisterUserDetails(username, email, mobileNum, thingId)
+    private fun registerUserOnline(username: String, email: String, mobileNum: String, thingId: String, mobileIp: String) {
+        val userDetails = RegisterUserDetails(username, email, mobileNum, thingId, mobileIp)
         RetrofitClient.instance.registerUser(userDetails).enqueue(object : Callback<RegistrationResult> {
             override fun onResponse(call: Call<RegistrationResult>, response: Response<RegistrationResult>) {
                 if (response.isSuccessful) {
@@ -156,5 +160,21 @@ class RegisterActivity : AppCompatActivity() {
             }
             null
         }
+    }
+    private fun getLocalIpAddress(): String {
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            for (intf in interfaces) {
+                val addrs = intf.inetAddresses
+                for (addr in addrs) {
+                    if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                        return addr.hostAddress ?: "0.0.0.0"
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error retrieving local IP: ${e.message}")
+        }
+        return "0.0.0.0"
     }
 }

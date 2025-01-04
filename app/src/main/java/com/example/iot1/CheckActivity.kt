@@ -88,7 +88,8 @@ class CheckActivity : AppCompatActivity() {
             if (resultCode == RESULT_OK) {
                 openMainActivity3()  // Bluetooth enabled, proceed
             } else {
-                Toast.makeText(this, "Bluetooth is required to proceed", Toast.LENGTH_SHORT).show()
+                val intent = Intent(this, Adhoc::class.java)
+                startActivity(intent)
             }
         }
     }

@@ -1,16 +1,7 @@
 package com.example.iot1
 
-import android.Manifest
-import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothSocket
 import android.content.ContentValues.TAG
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -21,15 +12,9 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import com.chaquo.python.PyObject
 import com.chaquo.python.Python
-import com.chaquo.python.android.AndroidPlatform
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import org.json.JSONArray
@@ -37,23 +22,13 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileReader
-import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
 import java.net.Inet4Address
 import java.net.NetworkInterface
-import java.util.UUID
 
-class BluetoothDisplayThingActivity : AppCompatActivity() {
+class Adhoc : AppCompatActivity() {
+    private lateinit var rpiIp: String
     private val MAX_RETRIES = 3
     private val RETRY_DELAY_MS = 1000L
-    private val bluetoothDeviceAddress ="D8:3A:DD:9F:DC:16" // Bluetooth MAC address
-    private var outputStream: OutputStream? = null
-    private var inputStream: InputStream? = null
-    private var isConnected = false
-    private lateinit var bluetoothAdapter: BluetoothAdapter
-    private lateinit var bluetoothSocket: BluetoothSocket
-    private val MY_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34DB")
     private val validEndKeywords = listOf(
         "S", "START", "OPTIONAL", "SENSOR", "ACTUATOR", "DEVICE", "OEM", "MODE", "LOCATION", "D", "NAME", "DOMAIN",
         "WARRANTY", "INSTALLATION", "SW VERSION", "HW VERSION", "O", "SOCKET", "M", "NAME VAL", "Z", "DATA",
@@ -70,87 +45,22 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
     )
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContentView(R.layout.activity_bluetooth_display_thing)
-        if (!Python.isStarted()) {
-            Python.start(AndroidPlatform(this))  // Initialize Python with the context
+        setContentView(R.layout.activity_adhoc)
+        val json = loadJSONFromFile("/storage/emulated/0/Android/data/com.example.iot1/files/Documents/ac.json")
+        if (json.isEmpty()) {
+            Log.e("MainActivity2", "JSON is null or empty")
+            return
         }
-        Handler(Looper.getMainLooper()).postDelayed({
-            //  progressBar.visibility = View.GONE // Hide ProgressBar after delay
 
-            // Proceed with the rest of the code
-           // bluetoothDeviceAddress = intent.getStringExtra("bluetooth_device_address")
-              //  ?: throw IllegalArgumentException("Bluetooth device address must be provided")
-            //Log.d("Lokesh", bluetoothDeviceAddress)
-
-            // Load and parse JSON
-            val json = loadJSONFromFile("/storage/emulated/0/Android/data/com.example.iot1/files/Documents/ac.json")
-            val jsonObject = Gson().fromJson(json, JsonObject::class.java)
-            Log.d("Lokesh", "JSON file is loaded $jsonObject")
-            setupBluetooth()
-            Log.d("Lokesh", "Bluetooth setup done")
-            checkBluetoothPermissions()
-            // Initialize UI components
-            processJsonObject(JSONObject(jsonObject.toString()))
-            addUIElements(JSONObject(jsonObject.toString()))
-
-        }, 3000)
-    } @SuppressLint("MissingPermission")
-    private fun setupBluetooth() {
-        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-
-        // Check if Bluetooth is enabled
-        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
-            Toast.makeText(this, "Please enable Bluetooth", Toast.LENGTH_SHORT).show()
-            finish()
+        val gson = Gson()
+        val jsonObject = gson.fromJson(json, JsonObject::class.java)
+        if (jsonObject == null) {
+            Log.e("MainActivity2", "Failed to parse JSON into JsonObject")
+            return
         }
-    }
-    @SuppressLint("InlinedApi")
-    private fun checkBluetoothPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { // Only needed on Android 12 (API level 31) and above
-            // Check if BLUETOOTH_CONNECT and BLUETOOTH_SCAN permissions are granted
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
 
-                // Request both permissions at once
-                ActivityCompat.requestPermissions(this, arrayOf(
-                    Manifest.permission.BLUETOOTH_CONNECT,
-                    Manifest.permission.BLUETOOTH_SCAN), 1)
-            } else {
-                // Permissions are already granted, proceed with Bluetooth connection
-                connectToBluetoothDevice()
-            }
-        } else {
-            // For devices running below Android 12, no need to request these permissions
-            connectToBluetoothDevice()
-        }
-    }
-    @SuppressLint("MissingPermission")
-    private fun connectToBluetoothDevice() {
-        val device: BluetoothDevice = bluetoothAdapter.getRemoteDevice(bluetoothDeviceAddress)
-
-        try {
-            // Create an RFCOMM socket to connect to the device
-            bluetoothSocket = device.createRfcommSocketToServiceRecord(MY_UUID)
-
-            // Cancel any ongoing discovery to optimize connection
-            bluetoothAdapter.cancelDiscovery()
-
-            // Connect to the remote device
-            bluetoothSocket.connect()
-
-            // Get the input and output streams
-            outputStream = bluetoothSocket.outputStream
-            inputStream = bluetoothSocket.inputStream
-
-            isConnected = true
-            Log.d("Lokesh", "Connected to Bluetooth device")
-
-        } catch (e: IOException) {
-            e.printStackTrace()
-            isConnected = false
-            Log.e("Lokesh", "Could not connect to Bluetooth device: ${e.message}")
-        }
+        processJsonObject(JSONObject(jsonObject.toString()))
+        addUIElements(JSONObject(jsonObject.toString()))
     }
     private fun loadJSONFromFile(filePath: String): String {
         val file = File(filePath)
@@ -248,7 +158,7 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
     }
     private fun addUIElements(jsonObject: JSONObject) {
         val inflater = LayoutInflater.from(this)
-        val containerLayout = findViewById<LinearLayout>(R.id.main)
+        val containerLayout = findViewById<LinearLayout>(R.id.main2)
 
         val classifications = extractAndClassify(jsonObject)
         val layoutsWithWeights = mutableListOf<Pair<View, Int>>()
@@ -283,7 +193,6 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
                         ).apply {
                             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
                         }
-
                         modeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                             override fun onItemSelected(
                                 parent: AdapterView<*>?,
@@ -292,12 +201,10 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
                                 id: Long
                             ) {
                                 val selectedMode = modeKeys[position]
-                                sendViaBluetooth("Mode:$selectedMode")
+                                sendToRpi("Mode:$selectedMode")
                             }
-
                             override fun onNothingSelected(parent: AdapterView<*>?) {}
                         }
-
                         layoutsWithWeights.add(Pair(inflatedView, 15))
                     }
                 }
@@ -406,7 +313,7 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
                 txtDisplay.text = "$currentTemperature $unit"
                 seekBar.progress = ((currentTemperature - min) / step).toInt()
                 val string = currentTemperature.toString()
-                sendViaBluetooth(string)
+                sendToRpi(string)
 
             }
         }
@@ -416,7 +323,7 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
                 txtDisplay.text = "$currentTemperature $unit"
                 seekBar.progress = ((currentTemperature - min) / step).toInt()
                 val string = currentTemperature.toString()
-                sendViaBluetooth(string)
+                sendToRpi(string)
             }
         }
         seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -428,72 +335,64 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
     }
-    private fun sendViaBluetooth(temperature: String) {
+    private fun sendToRpi(data: String) {
         Thread {
+            val rpiIp = "192.168.4.1" // Replace with your RPi's IP
+            val rpiPort = 12345 // Replace with your RPi's port
             var attempt = 0
             var success = false
 
             // Call Python to generate checksum
-            val checksum = generateChecksum(temperature)
+            val checksum = generateChecksum(data)
 
             val androidIp = getLocalIpAddress() // Function to retrieve device IP
-            val messageWithChecksum = "\"$temperature,$androidIp\":$checksum"
+            val messageWithChecksum = "\"$data,$androidIp\":$checksum"
 
             // Encrypt the message before sending
             val encryptedMessage = encryptMessageWithPython(messageWithChecksum)
 
             if (encryptedMessage == null) {
-                Log.e(TAG, "Encryption failed. Not sending data via Bluetooth.")
+                Log.e(TAG, "Encryption failed. Not sending data to RPi.")
                 return@Thread
             }
 
             while (attempt < MAX_RETRIES && !success) {
                 try {
-                    outputStream?.write("Invoke:$encryptedMessage".toByteArray(Charsets.UTF_8))
-                    outputStream?.flush()
+                    // Initialize Python instance for Ad-Hoc communication
+                    val python = Python.getInstance()
+                    val pythonModule = python.getModule("client") // Load client.py
 
-                    // Assuming we receive the acknowledgment message from Bluetooth
-                    val responseBytes = ByteArray(1024)
-                    val bytesRead = inputStream?.read(responseBytes) ?: -1 // Safely read from inputStream
+                    // Call the Python function to send the message
+                    val response: PyObject = pythonModule.callAttr("send_message", encryptedMessage, rpiIp, rpiPort)
+                    Log.i(TAG, "Response from RPi: ${response.toString()}")
 
-                    if (bytesRead > 0) {
-                        val receivedMessage = String(responseBytes, 0, bytesRead, Charsets.UTF_8)
+                    // Decrypt the acknowledgment before verification
+                    val decryptedAck = decryptMessageWithPython(response.toString())
 
-                        // Decrypt the acknowledgment before verification
-                        val decryptedAck = decryptMessageWithPython(receivedMessage)
-
-                        if (decryptedAck != null) {
-                            verifyChecksum(decryptedAck)
-                        } else {
-                            Log.e(TAG, "Decryption of acknowledgment failed via Bluetooth.")
-                        }
-
-                        success = true
-                        Log.i(TAG, "Data sent successfully via Bluetooth (encrypted): $encryptedMessage")
-                        Log.i(TAG, "Received acknowledgment via Bluetooth: $receivedMessage")
+                    if (decryptedAck != null) {
+                        verifyChecksum(decryptedAck)
                     } else {
-                        Log.e(TAG, "No response received from Bluetooth.")
+                        Log.e(TAG, "Decryption of acknowledgment failed via Ad-hoc network.")
                     }
+
+                    success = true
+                    Log.i(TAG, "Data sent successfully to RPi (encrypted): $encryptedMessage")
+                    Log.i(TAG, "Received acknowledgment from RPi: ${response.toString()}")
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error sending data via Bluetooth: ${e.message}")
+                    Log.e(TAG, "Error sending data to RPi: ${e.message}")
                 }
 
                 attempt++
                 if (!success) {
-                    try {
-                        Thread.sleep(RETRY_DELAY_MS)
-                    } catch (e: InterruptedException) {
-                        Log.e(TAG, "Retry delay interrupted: ${e.message}")
-                    }
+                    Thread.sleep(RETRY_DELAY_MS)
                 }
             }
 
             if (!success) {
-                Log.e(TAG, "Failed to send data after $MAX_RETRIES attempts via Bluetooth")
+                Log.e(TAG, "Failed to send data after $MAX_RETRIES attempts to RPi")
             }
         }.start()
     }
-
     private fun generateChecksum(data: String): String {
         try {
             val python = Python.getInstance()
@@ -603,4 +502,5 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
             return null
         }
     }
+
 }

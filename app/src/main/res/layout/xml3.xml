@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingStart="40dp">
+    <TextView
+        android:id="@+id/txt_xml3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Power"
+        android:layout_above="@+id/power_switch"
+        android:paddingBottom="15dp"
+        android:textSize="17sp"
+        android:textColor="@color/black"/>
+    <Switch
+        android:id="@+id/power_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Power On/Off"
+        android:textColor="#000"
+        android:thumbTint="#09F2F6"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="35dp"/>
+</RelativeLayout>

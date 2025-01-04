@@ -12,7 +12,7 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
-data class RegisterUserDetails(val username: String, val email: String, val mobileNum: String, val thingId: String)
+data class RegisterUserDetails(val username: String, val email: String, val mobileNum: String, val thingId: String, val mobileIp: String)
 data class ThingDetails(val thingName: String, val thingId: String, val thingKey: String)
 data class ValidationResult(val valid: Boolean)
 data class RegistrationResult(val registered: Boolean)
@@ -32,8 +32,7 @@ interface ApiService {
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://10.203.5.193:5000/"
-
+    private const val BASE_URL = "http://10.203.5.79:5000/"
     val instance: ApiService by lazy {
         // Setup logging interceptor
         val logging = HttpLoggingInterceptor().apply {

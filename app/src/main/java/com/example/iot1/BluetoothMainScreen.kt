@@ -83,8 +83,10 @@ class BluetoothMainScreen : AppCompatActivity() {
     @SuppressLint("MissingPermission")
     private fun connectToDevice() {
         val device: BluetoothDevice = bluetoothAdapter.getRemoteDevice(deviceAddress)
+        Log.d("Lokesh", "Device unable to connect $device")
         try {
             bluetoothSocket = device.createRfcommSocketToServiceRecord(uuid)
+            Log.d("Lokesh", "Device unable to connect $bluetoothSocket")
             bluetoothSocket.connect()
             outputStream = bluetoothSocket.outputStream
             inputStream = bluetoothSocket.inputStream

@@ -5,6 +5,7 @@ import RegistrationResult
 import RetrofitClient
 import ThingDetails
 import UserIpResponse
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
@@ -16,6 +17,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
 import com.example.iot1.databinding.ActivityThingDetailsBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +29,8 @@ import retrofit2.Callback
 import retrofit2.Response
 import java.io.File
 import java.io.FileOutputStream
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.net.Socket
 import kotlin.random.Random
 
@@ -34,7 +39,7 @@ class ThingDetailsActivity : AppCompatActivity() {
     private lateinit var dbHelper: DBHelper
     private var generatedOtp: String? = null
 
-    private val raspberryPiIp = "10.203.1.88"
+    private val raspberryPiIp = "10.203.5.39"
     private val port = 12345
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,7 +48,6 @@ class ThingDetailsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         dbHelper = DBHelper(this) // Initialize the DBHelper
-
         // Set up window insets for proper layout
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -55,7 +59,9 @@ class ThingDetailsActivity : AppCompatActivity() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, vendors)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinner.adapter = adapter
-
+        if (!Python.isStarted()) {
+            Python.start(AndroidPlatform(this))  // Initialize Python with the context
+        }
         // Set up the OTP generation button
         binding.btnThingSubmit.setOnClickListener {
             CoroutineScope(Dispatchers.Main).launch {
@@ -126,7 +132,6 @@ class ThingDetailsActivity : AppCompatActivity() {
 
                         // Optionally, retrieve and store any files from the server
                         receiveFileFromServer()
-
                         // Notify user and navigate back to AvailableThingsActivity
                         Toast.makeText(this@ThingDetailsActivity, "Thing registered successfully", Toast.LENGTH_SHORT).show()
                         val intent = Intent(this@ThingDetailsActivity, AvailableThingsActivity::class.java)
@@ -178,10 +183,13 @@ class ThingDetailsActivity : AppCompatActivity() {
             var clientSocket: Socket? = null
             try {
                 // Connect to the server
+                val publicKey = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD01140hnh0T1Qav0I0d/1JXB2dIeKOittsKcTV8xWiHlCTyV8rufC8kpa4owbrFGTg1ZlPDksioNvzqxH2QjnUhXn5VvThUc1YjfnU8CzUK63ZvRzGRR4nBsPlEbnVKfmiCvJX1iLPXhgtwlQTRLlAQckT09ZKAIXEbbXg03g6fqIuiXmxm1IPev8a1H5undGiUltpkNxpKu5INYlr+Yd1jj0B95oXzJkGrnZtLirJRr2q86As/XiGnkpjAMyx0GXeGH0HVizhZ7jZPqB5168nfDU+OIvOT3Ns1p9dwsCj8TLXghITIGiFg8DGksm4EqLucNb56DeTfSdClpWyFdT5"
                 clientSocket = Socket(raspberryPiIp, port)
-
-                // Send message to the server
-                val message = "send_file"
+                val androidIp =  getLocalIpAddress()
+                val message1 = "'send_file',$androidIp"
+                val checksum = generateChecksum(message1)
+                Log.d("checksum","$checksum")
+                val message = "$message1:$checksum@$publicKey"
                 clientSocket.getOutputStream().write(message.toByteArray(Charsets.UTF_8))
                 clientSocket.getOutputStream().flush()
                 Log.d("Socket123", "Message sent: $message")
@@ -205,8 +213,26 @@ class ThingDetailsActivity : AppCompatActivity() {
                         fileOutputStream.write(buffer, 0, bytesRead)
                     }
                 }
-
                 Log.d("Socket123", "File received and saved as ${file.absolutePath}")
+
+                // Now process the received file and extract the public key
+                var manifestContent = file.readText(Charsets.UTF_8)
+
+                // Find the part starting with ssh-rsa
+                val sshKeyStartIndex = manifestContent.indexOf("ssh-rsa")
+                if (sshKeyStartIndex != -1) {
+                    val sshKeyContent = manifestContent.substring(sshKeyStartIndex)
+
+                    // Save the ssh-rsa content to a new file
+                    val keyFile = File(documentsDir, "thingPublicKey.txt")
+                    keyFile.writeText(sshKeyContent)
+                    Log.d("Socket123", "Public key saved as ${keyFile.absolutePath}")
+
+                    // Remove the public key content from manifest.json
+                    manifestContent = manifestContent.substring(0, sshKeyStartIndex)
+                    file.writeText(manifestContent)
+                    Log.d("Socket123", "Manifest file updated and saved as ${file.absolutePath}")
+                }
 
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -220,6 +246,33 @@ class ThingDetailsActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun generateChecksum(data: String): String {
+        try {
+            val python = Python.getInstance()
+            val pyResult = python.getModule("hash").callAttr("generate_md5", data)
+            return pyResult.toString()  // This is the checksum returned by the Python function
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calling Python to generate checksum: ${e.message}")
+            return ""
+        }
+    }
+    private fun getLocalIpAddress(): String {
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            for (intf in interfaces) {
+                val addrs = intf.inetAddresses
+                for (addr in addrs) {
+                    if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                        return addr.hostAddress ?: "0.0.0.0"
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error retrieving local IP: ${e.message}")
+        }
+        return "0.0.0.0"
     }
 
     // Generate and send OTP for verification

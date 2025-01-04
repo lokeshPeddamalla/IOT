@@ -3,6 +3,7 @@ package com.example.iot1
 import DBHelper
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -34,7 +35,7 @@ class AvailableThingsActivity : AppCompatActivity() {
 
         // Load data from the database
         loadThings()
-
+        Log.d("lokesh","loaded ${loadThings()}")
         // Set up the Add Device button click listener
         binding.btnAddDevice.setOnClickListener {
             val intent = Intent(this@AvailableThingsActivity, ThingDetailsActivity::class.java)

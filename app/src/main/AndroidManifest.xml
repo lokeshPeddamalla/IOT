@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -10,16 +11,21 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"
         tools:ignore="ScopedStorage" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-    <uses-feature android:name="android.hardware.bluetooth"
+
+    <uses-feature
+        android:name="android.hardware.bluetooth"
         android:required="true" />
 
     <application
         android:allowBackup="true"
+        android:usesCleartextTraffic="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -30,6 +36,9 @@
         android:theme="@style/Theme.IOT1"
         tools:targetApi="31">
         <activity
+            android:name=".Adhoc"
+            android:exported="false" />
+        <activity
             android:name=".BluetoothDisplayThingActivity"
             android:exported="true">
 
@@ -37,30 +46,35 @@
         <activity
             android:name=".BluetoothMainScreen"
             android:exported="true">
+
         </activity>
         <activity
             android:name=".CheckActivity"
+            android:exported="true">
+
+        </activity>
+        <activity
+            android:name=".DisplayThingActivity"
+            android:exported="true">
+
+        </activity>
+        <activity
+            android:name=".ThingDetailsActivity"
+            android:exported="true">
+
+        </activity>
+        <activity
+            android:name=".RegisterActivity"
+            android:exported="true">
+
+        </activity>
+        <activity
+            android:name=".AvailableThingsActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
-        <activity
-            android:name=".DisplayThingActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ThingDetailsActivity"
-            android:exported="true">
-        </activity>
-        <activity
-            android:name=".RegisterActivity"
-            android:exported="true">
-        </activity>
-        <activity
-            android:name=".AvailableThingsActivity"
-            android:exported="true">
-
         </activity>
         <activity
             android:name=".MainActivity"
