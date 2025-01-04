@@ -1,0 +1,429 @@
+// Define GrammarRule with possible attributes for terminals and non-terminals
+data class GrammarRule(
+    val type: String,                      // Rule type, e.g., "NUMERIC", "STRING"
+    val children: List<List<String>> = emptyList(), // Expansions: List of alternative lists
+    val isOptional: Boolean = false,       // Indicates if the rule is optional
+    val layout: Int? = null                // UI layout for terminal symbols
+)
+
+// Initialize grammar map with structured rules
+val grammarMap = mapOf(
+    // Start rule
+    "S" to GrammarRule(
+        type = "START",
+        children = listOf(listOf("START"))
+    ),
+    "START" to GrammarRule(
+        type = "START",
+        children = listOf(
+            listOf("OPTIONAL", "START"),
+            listOf("SENSOR"),
+            listOf("ACTUATOR"),
+            listOf("SENSOR", "ACTUATOR")
+        )
+    ),
+    "OPTIONAL" to GrammarRule(
+        type = "OPTIONAL",
+        children = listOf(
+            listOf("DEVICE"),
+            listOf("OEM"),
+            listOf("MODE"),
+            listOf("LOCATION")
+        ),
+        isOptional = true
+    ),
+    // DEVICE rules
+    "DEVICE" to GrammarRule(
+        type = "DEVICE",
+        children = listOf(listOf("D"))
+    ),
+    "D" to GrammarRule(
+        type = "D",
+        children = listOf(
+            listOf("NAME"),
+            listOf("DOMAIN"),
+            listOf("INSTALLATION"),
+            listOf("WARRANTY"),
+            listOf("SW VERSION"),
+            listOf("HW VERSION"),
+            listOf("D", "D")
+        )
+    ),
+    "NAME" to GrammarRule(type = "NAME", layout = R.layout.str_layout),  // Assuming R.layout.str_layout for :str
+    "DOMAIN" to GrammarRule(type = "DOMAIN", layout = R.layout.str_layout),
+    "INSTALLATION" to GrammarRule(type = "INSTALLATION", layout = R.layout.str_layout),
+    "WARRANTY" to GrammarRule(type = "WARRANTY", layout = R.layout.str_layout),
+    "SW VERSION" to GrammarRule(type = "SW VERSION", layout = R.layout.str_layout),
+    "HW VERSION" to GrammarRule(type = "HW VERSION", layout = R.layout.str_layout),
+
+    // OEM rules
+    "OEM" to GrammarRule(
+        type = "OEM",
+        children = listOf(listOf("O"))
+    ),
+    "O" to GrammarRule(
+        type = "O",
+        children = listOf(
+            listOf("NAME"),
+            listOf("SOCKET"),
+            listOf("NAME", "SOCKET")
+        )
+    ),
+    "SOCKET" to GrammarRule(type = "SOCKET", layout = R.layout.socket_layout), // Assuming a socket layout
+
+    // MODE rules
+    "MODE" to GrammarRule(
+        type = "MODE",
+        children = listOf(listOf("M"))
+    ),
+    "M" to GrammarRule(
+        type = "M",
+        children = listOf(
+            listOf("M", "M"),
+            listOf("NAME VAL", "Z")
+        )
+    ),
+    "NAME VAL" to GrammarRule(type = "NAME VAL", layout = R.layout.str_layout),
+    "Z" to GrammarRule(
+        type = "Z",
+        children = listOf(
+            listOf("ACTUATOR INFO"),
+            listOf("ACTUATOR INFO", "Z")
+        )
+    ),
+    "ACTUATOR INFO" to GrammarRule(
+        type = "ACTUATOR INFO",
+        children = listOf(
+            listOf("NAME VAL", "DATA")
+        )
+    ),
+    "DATA" to GrammarRule(
+        type = "DATA",
+        children = listOf(
+            listOf("VALUE"),
+            listOf("VALUE", "UNIT VAL")
+        )
+    ),
+    "VALUE" to GrammarRule(
+        type = "VALUE",
+        children = listOf(
+            listOf("str"),
+            listOf("num"),
+            listOf("array")
+        )
+    ),
+    "UNIT VAL" to GrammarRule(type = "UNIT VAL", layout = R.layout.str_layout),
+
+    // LOCATION rules
+    "LOCATION" to GrammarRule(
+        type = "LOCATION",
+        children = listOf(listOf("AREA"))
+    ),
+    "AREA" to GrammarRule(
+        type = "AREA",
+        children = listOf(
+            listOf("str"),
+            listOf("AREA", "AREA")
+        )
+    ),
+
+    // SENSOR rules
+    "SENSOR" to GrammarRule(
+        type = "SENSOR",
+        children = listOf(listOf("X"))
+    ),
+    "X" to GrammarRule(
+        type = "X",
+        children = listOf(
+            listOf("X", "X"),
+            listOf("NAME VAL", "{DESC", "SENSOR TYPE}"),
+            listOf("NAME VAL", "{SENSOR TYPE}")
+        )
+    ),
+    "DESC" to GrammarRule(type = "DESC", layout = R.layout.str_layout),
+    "SENSOR TYPE" to GrammarRule(
+        type = "SENSOR TYPE",
+        children = listOf(
+            listOf("STRUCT X"),
+            listOf("BATTERY"),
+            listOf("GRAPH"),
+            listOf("DATA TYPE")
+        )
+    ),
+    "STRUCT X" to GrammarRule(
+        type = "STRUCT X",
+        children = listOf(listOf("X", "X"))
+    ),
+    "BATTERY" to GrammarRule(type = "BATTERY", layout = R.layout.empty_layout), // Assuming an empty layout
+    "GRAPH" to GrammarRule(
+        type = "GRAPH",
+        children = listOf(listOf("GRAPH TYPE"))
+    ),
+    "GRAPH TYPE" to GrammarRule(
+        type = "GRAPH TYPE",
+        children = listOf(
+            listOf("PIE"),
+            listOf("BAR")
+        )
+    ),
+    "PIE" to GrammarRule(
+        type = "PIE",
+        children = listOf(listOf("CORD1", "CORD2"))
+    ),
+    "BAR" to GrammarRule(
+        type = "BAR",
+        children = listOf(listOf("CORD1", "CORD2"))
+    ),
+    "CORD1" to GrammarRule(
+        type = "CORD1",
+        children = listOf(
+            listOf("num"),
+            listOf("str"),
+            listOf("bool"),
+            listOf("time")
+        )
+    ),
+    "CORD2" to GrammarRule(
+        type = "CORD2",
+        children = listOf(
+            listOf("num"),
+            listOf("str"),
+            listOf("bool"),
+            listOf("time")
+        )
+    ),
+    "ACTUATOR" to GrammarRule(
+        type = "ACTUATOR",
+        children = listOf(listOf("Y"))
+    ),
+    "Y" to GrammarRule(
+        type = "Y",
+        children = listOf(
+            listOf("Y", "Y"),
+            listOf("NAME VAL", "{DESC", "ACTUATOR TYPE}"),
+            listOf("NAME VAL", "{ACTUATOR TYPE}")
+        )
+    ),
+    "ACTUATOR TYPE" to GrammarRule(
+        type = "ACTUATOR TYPE",
+        children = listOf(
+            listOf("DATA TYPE"),
+            listOf("STRUCT Y")
+        )
+    ),
+    "STRUCT Y" to GrammarRule(
+        type = "STRUCT Y",
+        children = listOf(listOf("Y", "Y"))
+    ),
+
+    // BOOLEAN rules
+    "BOOLEAN" to GrammarRule(
+        type = "BOOLEAN",
+        children = listOf(listOf("str", "str")),
+        layout = R.layout.boolean_toggle  // Assuming a toggle layout for BOOLEAN
+    ),
+
+    // NUMERIC rules
+    "NUMERIC" to GrammarRule(
+        type = "NUMERIC",
+        children = listOf(
+            listOf("RANGE"),
+            listOf("TUPLE", "UNIT")
+        )
+    ),
+    "RANGE" to GrammarRule(
+        type = "RANGE",
+        children = listOf(
+            listOf("R", "R"),
+            listOf("RVAL")
+        )
+    ),
+    "R" to GrammarRule(
+        type = "R",
+        children = listOf(
+            listOf("RVAL"),
+            listOf("R", "R")
+        )
+    ),
+    "RVAL" to GrammarRule(
+        type = "RVAL",
+        children = listOf(
+            listOf("MIN", "MAX", "STEP", "OPERATION"),
+            listOf("MIN", "MAX", "STEP", "OPERATION", "UNIT VAL"),
+            listOf("MIN", "MAX", "STEP", "OPERATION", "UNIT VAL", "EXCEPT")
+        )
+    ),
+    "MIN" to GrammarRule(type = "MIN", layout = R.layout.num_layout),  // Assuming a number layout
+    "MAX" to GrammarRule(type = "MAX", layout = R.layout.num_layout),
+    "STEP" to GrammarRule(type = "STEP", layout = R.layout.num_layout),
+    "OPERATION" to GrammarRule(
+        type = "OPERATION",
+        children = listOf(
+            listOf("+"),
+            listOf("*"),
+            listOf("-1")
+        )
+    ),
+    "UNIT VAL" to GrammarRule(type = "UNIT VAL", layout = R.layout.str_layout),
+    "EXCEPT" to GrammarRule(
+        type = "EXCEPT",
+        children = listOf(
+            listOf("TUPLE"),
+            listOf("MIN", "MAX", "STEP", "OPERATION")
+        )
+    ),
+    "TUPLE" to GrammarRule(
+        type = "TUPLE",
+        children = listOf(listOf("TVAL"))
+    ),
+    "TVAL" to GrammarRule(
+        type = "TVAL",
+        children = listOf(
+            listOf("TVAL", "TVAL"),
+            listOf("num")
+        )
+    ),
+    "UNIT" to GrammarRule(type = "UNIT", layout = R.layout.unit_layout),
+
+    // STRING rules
+    "STRING" to GrammarRule(
+        type = "STRING",
+        children = listOf(listOf("OPTION"))
+    ),
+    "OPTION" to GrammarRule(
+        type = "OPTION",
+        children = listOf(listOf("OVAL"))
+    ),
+    "OVAL" to GrammarRule(
+        type = "OVAL",
+        children = listOf(
+            listOf("str"),
+            listOf("OVAL", "OVAL")
+        )
+    ),
+
+    // IMAGE rules
+    "IMAGE" to GrammarRule(
+        type = "IMAGE",
+        children = listOf(
+            listOf("SIZE", "IMAGE ATTRIB"),
+            listOf("SIZE"),
+            listOf("IMAGE ATTRIB"),
+            listOf()
+        )
+    ),
+    "SIZE" to GrammarRule(
+        type = "SIZE",
+        children = listOf(listOf("LENGTH", "WIDTH", "UNIT VAL"))
+    ),
+    "LENGTH" to GrammarRule(type = "LENGTH", layout = R.layout.num_layout),
+    "WIDTH" to GrammarRule(type = "WIDTH", layout = R.layout.num_layout),
+    "IMAGE ATTRIB" to GrammarRule(
+        type = "IMAGE ATTRIB",
+        children = listOf(listOf("SRC", "IMAGE TYPE"))
+    ),
+    "SRC" to GrammarRule(type = "SRC", layout = R.layout.str_layout),
+    "IMAGE TYPE" to GrammarRule(
+        type = "IMAGE TYPE",
+        children = listOf(
+            listOf("jpeg"),
+            listOf("png"),
+            listOf("gif"),
+            listOf("raw")
+        )
+    ),
+
+    // AUDIO rules
+    "AUDIO" to GrammarRule(
+        type = "AUDIO",
+        children = listOf(
+            listOf("SIZE", "PLAYER ATTRIB"),
+            listOf("SIZE"),
+            listOf("PLAYER ATTRIB"),
+            listOf()
+        )
+    ),
+    "PLAYER ATTRIB" to GrammarRule(
+        type = "PLAYER ATTRIB",
+        children = listOf(listOf("SRC", "PLAYER TYPE", "LOOP", "MUTE", "ACTUATOR", "AUTOPLAY"))
+    ),
+    "PLAYER TYPE" to GrammarRule(
+        type = "PLAYER TYPE",
+        children = listOf(
+            listOf("mp4"),
+            listOf("mp3"),
+            listOf("ogg"),
+            listOf("mov"),
+            listOf("wmv"),
+            listOf("avi"),
+            listOf("mpeg"),
+            listOf("webm")
+        )
+    ),
+    "LOOP" to GrammarRule(type = "LOOP", layout = R.layout.bool_layout),
+    "MUTE" to GrammarRule(type = "MUTE", layout = R.layout.bool_layout),
+    "ACTUATOR" to GrammarRule(type = "ACTUATOR", layout = R.layout.bool_layout),
+    "AUTOPLAY" to GrammarRule(type = "AUTOPLAY", layout = R.layout.bool_layout),
+
+    // VIDEO rules (similar to AUDIO)
+    "VIDEO" to GrammarRule(
+        type = "VIDEO",
+        children = listOf(
+            listOf("SIZE", "PLAYER ATTRIB"),
+            listOf("SIZE"),
+            listOf("PLAYER ATTRIB"),
+            listOf()
+        )
+    ),
+
+    // MAP rules
+    "MAP" to GrammarRule(
+        type = "MAP",
+        children = listOf(
+            listOf("SIZE"),
+            listOf()
+        )
+    ),
+
+    // COLOR rules
+    "COLOR" to GrammarRule(type = "COLOR", layout = R.layout.color_layout),
+
+    // DATE rules
+    "DATE" to GrammarRule(type = "DATE", layout = R.layout.date_layout),
+
+    // TIME rules
+    "TIME" to GrammarRule(type = "TIME", layout = R.layout.time_layout)
+	 "ACTUATOR" to GrammarRule(
+        type = "ACTUATOR",
+        children = listOf(listOf("Y")),
+        layout = R.layout.actuator_layout  // Placeholder layout for ACTUATOR
+    ),
+
+    // Y rule
+    "Y" to GrammarRule(
+        type = "Y",
+        children = listOf(
+            listOf("Y", "Y"),  // Recursive case for Y
+            listOf("NAME VAL", "{DESC", "ACTUATOR TYPE}"),
+            listOf("NAME VAL", "{ACTUATOR TYPE}")
+        ),
+        layout = R.layout.y_layout  // Placeholder layout for Y
+    ),
+
+    // ACTUATOR TYPE rule
+    "ACTUATOR TYPE" to GrammarRule(
+        type = "ACTUATOR TYPE",
+        children = listOf(
+            listOf("DATA TYPE"),
+            listOf("STRUCT Y")
+        )
+    ),
+
+    // STRUCT Y rule
+    "STRUCT Y" to GrammarRule(
+        type = "STRUCT Y",
+        children = listOf(listOf("Y", "Y")),
+        layout = R.layout.struct_y_layout  // Placeholder layout for STRUCT Y
+    )
+)
+
