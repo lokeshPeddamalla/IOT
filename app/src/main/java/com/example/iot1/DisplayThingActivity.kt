@@ -420,6 +420,8 @@ class DisplayThingActivity : AppCompatActivity() {
             try {
                 if (socket == null || socket!!.isClosed) {
                     Log.d("Connection", "No active connection. Call connectionToThing() first.")
+                    //connectToBluetooth()
+                    sendViaBluetooth(data)
                 } else {
                     outputStream?.write(encryptedMessage?.toByteArray(Charsets.UTF_8))
                     Log.d("Lokesh","sent message: $encryptedMessage")
@@ -468,7 +470,6 @@ class DisplayThingActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 Log.d("Lokesh", "Error sending data: ${e.message}")
-                sendViaBluetooth(data)
             }
         }.start()
     }
@@ -493,7 +494,7 @@ class DisplayThingActivity : AppCompatActivity() {
 
             while (attempt < MAX_RETRIES && !success) {
                 try {
-                    outputStream?.write("Invoke:$encryptedMessage".toByteArray(Charsets.UTF_8))
+                    outputStream?.write("$encryptedMessage".toByteArray(Charsets.UTF_8))
                     outputStream?.flush()
 
                     // Assuming we receive the acknowledgment message from Bluetooth
