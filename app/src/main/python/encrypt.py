@@ -6,7 +6,7 @@ import binascii
 
 def encrypt_message(public_key_str, message):
     # Load the public key from string
-    public_key = serialization.load_pem_public_key(
+    public_key = serialization.load_ssh_public_key(
         public_key_str.encode(),
         backend=default_backend()
     )

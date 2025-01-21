@@ -12,6 +12,7 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
+data class UserDetails(val username: String, val userpassword: String)
 data class RegisterUserDetails(val username: String, val email: String, val mobileNum: String, val thingId: String, val mobileIp: String)
 data class ThingDetails(val thingName: String, val thingId: String, val thingKey: String)
 data class ValidationResult(val valid: Boolean)
@@ -20,7 +21,8 @@ data class UserIpResponse(val thingIp: String?)
 
 
 interface ApiService {
-
+    @POST("/validate_user")
+    fun validateUser(@Body userDetails: UserDetails): Call<ValidationResult>
     @POST("/register_user")
     fun registerUser(@Body registerUserDetails: RegisterUserDetails): Call<RegistrationResult>
 

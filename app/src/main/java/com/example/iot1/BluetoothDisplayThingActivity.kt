@@ -18,6 +18,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
@@ -47,12 +48,15 @@ import java.util.UUID
 class BluetoothDisplayThingActivity : AppCompatActivity() {
     private val MAX_RETRIES = 3
     private val RETRY_DELAY_MS = 1000L
-    private val bluetoothDeviceAddress ="D8:3A:DD:9F:DC:16" // Bluetooth MAC address
+  //  private val bluetoothDeviceAddress ="B8:27:EB:2B:90:22" // Bluetooth MAC address
+   private lateinit var bluetoothDeviceAddress: String
     private var outputStream: OutputStream? = null
     private var inputStream: InputStream? = null
+    //private lateinit var progressBar: ProgressBar
     private var isConnected = false
     private lateinit var bluetoothAdapter: BluetoothAdapter
     private lateinit var bluetoothSocket: BluetoothSocket
+
     private val MY_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34DB")
     private val validEndKeywords = listOf(
         "S", "START", "OPTIONAL", "SENSOR", "ACTUATOR", "DEVICE", "OEM", "MODE", "LOCATION", "D", "NAME", "DOMAIN",
@@ -76,15 +80,16 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
             Python.start(AndroidPlatform(this))  // Initialize Python with the context
         }
         Handler(Looper.getMainLooper()).postDelayed({
-            //  progressBar.visibility = View.GONE // Hide ProgressBar after delay
+          //  progressBar.visibility = View.GONE
 
             // Proceed with the rest of the code
-           // bluetoothDeviceAddress = intent.getStringExtra("bluetooth_device_address")
-              //  ?: throw IllegalArgumentException("Bluetooth device address must be provided")
-            //Log.d("Lokesh", bluetoothDeviceAddress)
+//            bluetoothDeviceAddress = intent.getStringExtra("bluetooth_device_address")
+//                ?: throw IllegalArgumentException("Bluetooth device address must be provided")
+//            Log.d("Lokesh", bluetoothDeviceAddress)
+            bluetoothDeviceAddress = "B8:27:EB:2B:90:22"
 
             // Load and parse JSON
-            val json = loadJSONFromFile("/storage/emulated/0/Android/data/com.example.iot1/files/Documents/ac.json")
+            val json = loadJSONFromFile("/storage/emulated/0/Android/data/com.example.iot1/files/manifest.json")
             val jsonObject = Gson().fromJson(json, JsonObject::class.java)
             Log.d("Lokesh", "JSON file is loaded $jsonObject")
             setupBluetooth()
@@ -292,7 +297,7 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
                                 id: Long
                             ) {
                                 val selectedMode = modeKeys[position]
-                                sendViaBluetooth("Mode:$selectedMode")
+                                sendViaBluetooth("$selectedMode")
                             }
 
                             override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -432,24 +437,24 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
         Thread {
             var attempt = 0
             var success = false
-
-            // Call Python to generate checksum
-            val checksum = generateChecksum(temperature)
-
             val androidIp = getLocalIpAddress() // Function to retrieve device IP
-            val messageWithChecksum = "\"$temperature,$androidIp\":$checksum"
-
-            // Encrypt the message before sending
+            val dataAndIp = "Data:$temperature+IP:$androidIp"
+            val checksum = generateChecksum(dataAndIp)
+            val messageWithChecksum = "$dataAndIp,$checksum"
             val encryptedMessage = encryptMessageWithPython(messageWithChecksum)
-
+            Log.d("Lokesh","encrypted message $encryptedMessage")
+            Log.d("Lokesh","sending message $temperature")
             if (encryptedMessage == null) {
                 Log.e(TAG, "Encryption failed. Not sending data via Bluetooth.")
-                return@Thread
+                //return@Thread
             }
 
             while (attempt < MAX_RETRIES && !success) {
+                Log.d("Lokesh","entering while")
                 try {
-                    outputStream?.write("Invoke:$encryptedMessage".toByteArray(Charsets.UTF_8))
+                    Log.d("Lokesh","entering try")
+                    outputStream?.write("$encryptedMessage".toByteArray(Charsets.UTF_8))
+                    Log.d("Lokesh","sent message $temperature")
                     outputStream?.flush()
 
                     // Assuming we receive the acknowledgment message from Bluetooth
@@ -461,12 +466,37 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
 
                         // Decrypt the acknowledgment before verification
                         val decryptedAck = decryptMessageWithPython(receivedMessage)
+                        Log.d("Lokesh","decrypted message $receivedMessage")
+                        if (decryptedAck!!.isNotEmpty()){
+                            Log.d("ACKDecryption", "Received acknowledgment via Bluetooth: $receivedMessage")
+                            val decryptedMessage =  decryptMessageWithPython(receivedMessage)
+                            Log.d("ACKDecryption","$decryptedMessage")
+                            val parts = decryptedMessage!!.split("+")
+                            if (parts.size ==2){
+                                val message = parts[0]
+                                Log.d("ACKDecryption","message is: $message")
+                                val ipAndChecksum = parts[1]
+                                val ipAndChecksumSplit = ipAndChecksum.split(",")
+                                if (ipAndChecksumSplit.size == 2){
+                                    val ip = ipAndChecksumSplit[0]
+                                    val checksum = ipAndChecksumSplit[1]
+                                    Log.d("ACKDecryption","ip is: $ip")
+                                    Log.d("ACKDecryption","checksum is: $checksum")
 
-                        if (decryptedAck != null) {
-                            verifyChecksum(decryptedAck)
-                        } else {
-                            Log.e(TAG, "Decryption of acknowledgment failed via Bluetooth.")
+                                    val generateChecksum = generateChecksum("$message+$ip")
+                                    if (checksum == generateChecksum){
+                                        Log.d("ACKDecryption","Checksum matched")
+                                    }
+                                }
+                            }
+                            //success = true
                         }
+
+//                        if (decryptedAck != null) {
+//                            verifyChecksum(decryptedAck)
+//                        } else {
+//                            Log.e(TAG, "Decryption of acknowledgment failed via Bluetooth.")
+//                        }
 
                         success = true
                         Log.i(TAG, "Data sent successfully via Bluetooth (encrypted): $encryptedMessage")
@@ -569,7 +599,7 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
     private fun encryptMessageWithPython(plainText: String): String? {
         try {
             // Define path to the public key (same as where private key is)
-            val publicKeyPath = "/storage/emulated/0/Android/data/com.example.iot1/files/Documents/publicKey.txt"
+            val publicKeyPath = "/storage/emulated/0/Android/data/com.example.iot1/files/thingPublicKey.txt"
 
             // Read the public key from the file
             val publicKey = File(publicKeyPath).readText()
@@ -588,7 +618,7 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
     private fun decryptMessageWithPython(encryptedMessage: String): String? {
         try {
             // Define path to the private key (same as where the public key is)
-            val privateKeyPath = "/storage/emulated/0/Android/data/com.example.iot1/files/Documents/privateKey.txt"
+            val privateKeyPath = "/storage/emulated/0/Android/data/com.example.iot1/files/privateKey.txt"
 
             // Read the private key from the file
             val privateKey = File(privateKeyPath).readText()

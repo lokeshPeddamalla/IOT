@@ -22,7 +22,9 @@ import com.chaquo.python.android.AndroidPlatform
 import com.example.iot1.databinding.ActivityThingDetailsBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import retrofit2.Call
 import retrofit2.Callback
@@ -32,14 +34,14 @@ import java.io.FileOutputStream
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.Socket
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import kotlin.random.Random
 
 class ThingDetailsActivity : AppCompatActivity() {
     private lateinit var binding: ActivityThingDetailsBinding
     private lateinit var dbHelper: DBHelper
     private var generatedOtp: String? = null
-
-    private val raspberryPiIp = "10.203.5.39"
     private val port = 12345
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -129,9 +131,8 @@ class ThingDetailsActivity : AppCompatActivity() {
 
                         // Save to local database after successful registration
                         saveThingDetailsLocally(thingName, thingId, thingKey)
-
                         // Optionally, retrieve and store any files from the server
-                        receiveFileFromServer()
+                        receiveFileFromServer(thingId)
                         // Notify user and navigate back to AvailableThingsActivity
                         Toast.makeText(this@ThingDetailsActivity, "Thing registered successfully", Toast.LENGTH_SHORT).show()
                         val intent = Intent(this@ThingDetailsActivity, AvailableThingsActivity::class.java)
@@ -157,19 +158,31 @@ class ThingDetailsActivity : AppCompatActivity() {
 
     // Save thing details to the local database
     private fun saveThingDetailsLocally(thingName: String, thingId: String, thingKey: String) {
-        fetchUserIp(thingId, object : IpCallback {
-            override fun onIpFetched(ipAddress: String) {
-                // Use the fetched IP address in your save function
-                val insertResult = dbHelper.insertThing(thingName, thingId, thingKey, ipAddress)
-                if (insertResult != -1L) {
-                    Log.d("ThingDetails", "Thing details saved locally with IP: $ipAddress")
-                    refreshUI()
-                } else {
-                    Log.d("ThingDetails", "Failed to save thing details locally")
-                }
+        Log.d("Lokesh", "entered save things locally")
+
+        // Start a coroutine to handle the IP fetching and saving operation
+        CoroutineScope(Dispatchers.Main).launch {
+            // Fetch the IP address in the background (on IO thread)
+            val IPAddress = withContext(Dispatchers.IO) {
+                fetchUserIp(thingId) // Fetch IP asynchronously
             }
-        })
+            Log.d("Lokesh", "locally saving ip is: $IPAddress")
+
+            // Use the fetched IP address to insert into the database (done on the IO thread)
+            val insertResult = withContext(Dispatchers.IO) {
+                dbHelper.insertThing(thingName, thingId, thingKey, IPAddress)
+            }
+
+            // Check the result and update the UI on the Main thread
+            if (insertResult != -1L) {
+                Log.d("Lokesh", "Thing details saved locally with IP: $IPAddress")
+                refreshUI()
+            } else {
+                Log.d("Lokesh", "Failed to save thing details locally")
+            }
+        }
     }
+
 
     private fun refreshUI() {
         // Navigate back to AvailableThingsActivity
@@ -178,28 +191,28 @@ class ThingDetailsActivity : AppCompatActivity() {
         finish() // Close the current activity
     }
     // Receive the file from the Raspberry Pi server
-    private fun receiveFileFromServer() {
+    private fun receiveFileFromServer(thingId: String) {
         Thread {
             var clientSocket: Socket? = null
             try {
-                // Connect to the server
-                val publicKey = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD01140hnh0T1Qav0I0d/1JXB2dIeKOittsKcTV8xWiHlCTyV8rufC8kpa4owbrFGTg1ZlPDksioNvzqxH2QjnUhXn5VvThUc1YjfnU8CzUK63ZvRzGRR4nBsPlEbnVKfmiCvJX1iLPXhgtwlQTRLlAQckT09ZKAIXEbbXg03g6fqIuiXmxm1IPev8a1H5undGiUltpkNxpKu5INYlr+Yd1jj0B95oXzJkGrnZtLirJRr2q86As/XiGnkpjAMyx0GXeGH0HVizhZ7jZPqB5168nfDU+OIvOT3Ns1p9dwsCj8TLXghITIGiFg8DGksm4EqLucNb56DeTfSdClpWyFdT5"
+                // Fetch the IP address asynchronously on the IO thread
+                val raspberryPiIp = runBlocking { fetchUserIp(thingId) }
+
+                // Connect to the server using the fetched IP address
                 clientSocket = Socket(raspberryPiIp, port)
-                val androidIp =  getLocalIpAddress()
+                val publicKey = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD01140hnh0T1Qav0I0d/1JXB2dIeKOittsKcTV8xWiHlCTyV8rufC8kpa4owbrFGTg1ZlPDksioNvzqxH2QjnUhXn5VvThUc1YjfnU8CzUK63ZvRzGRR4nBsPlEbnVKfmiCvJX1iLPXhgtwlQTRLlAQckT09ZKAIXEbbXg03g6fqIuiXmxm1IPev8a1H5undGiUltpkNxpKu5INYlr+Yd1jj0B95oXzJkGrnZtLirJRr2q86As/XiGnkpjAMyx0GXeGH0HVizhZ7jZPqB5168nfDU+OIvOT3Ns1p9dwsCj8TLXghITIGiFg8DGksm4EqLucNb56DeTfSdClpWyFdT5"
+                // Prepare the message to send to the server
+                val androidIp = getLocalIpAddress()
                 val message1 = "'send_file',$androidIp"
                 val checksum = generateChecksum(message1)
-                Log.d("checksum","$checksum")
+                Log.d("checksum", "$checksum")
                 val message = "$message1:$checksum@$publicKey"
                 clientSocket.getOutputStream().write(message.toByteArray(Charsets.UTF_8))
                 clientSocket.getOutputStream().flush()
                 Log.d("Socket123", "Message sent: $message")
 
                 // Ensure the Documents directory exists
-                val documentsDir = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-                if (documentsDir != null && !documentsDir.exists()) {
-                    documentsDir.mkdirs()
-                    Log.d("Socket123", "Documents directory created at ${documentsDir.absolutePath}")
-                }
+                val documentsDir = getExternalFilesDir("")
 
                 // Prepare the file for writing
                 val file = File(documentsDir, "manifest.json")
@@ -248,6 +261,7 @@ class ThingDetailsActivity : AppCompatActivity() {
         }.start()
     }
 
+
     private fun generateChecksum(data: String): String {
         try {
             val python = Python.getInstance()
@@ -288,36 +302,54 @@ class ThingDetailsActivity : AppCompatActivity() {
             null
         }
     }
-    fun fetchUserIp(thingId: String, callback: IpCallback) {
+//    private suspend fun fetchUserIp(thingId: String): String {
+//        return withContext(Dispatchers.IO) {
+//            try {
+//                val call = RetrofitClient.instance.getUserIp(thingId)
+//                val response = call.execute() // Synchronous execution for coroutine compatibility
+//
+//                if (response.isSuccessful) {
+//                    val userIpResponse = response.body()
+//                    val ipAddress = userIpResponse?.thingIp
+//                    if (!ipAddress.isNullOrEmpty()) {
+//                        Log.d("IPFetcher", "Fetched IP address: $ipAddress")
+//                        return@withContext ipAddress
+//                    } else {
+//                        Log.d("IPFetcher", "IP address is null or empty, providing default IP")
+//                    }
+//                } else {
+//                    Log.d("IPFetcher", "Failed to fetch IP address: ${response.errorBody()?.string()}")
+//                }
+//            } catch (e: Exception) {
+//                Log.d("IPFetcher", "Error: ${e.message}")
+//            }
+//            return@withContext "default_ip" // Default IP in case of failure
+//        }
+//    }
+suspend fun fetchUserIp(thingId: String): String {
+    return suspendCoroutine { continuation ->
         val call = RetrofitClient.instance.getUserIp(thingId)
         call.enqueue(object : retrofit2.Callback<UserIpResponse> {
             override fun onResponse(call: Call<UserIpResponse>, response: retrofit2.Response<UserIpResponse>) {
-                Log.d("IPFetcher", "Fetching IP for thingId: $thingId")
                 if (response.isSuccessful) {
-                    val userIpResponse = response.body()
-                    Log.d("IPFetcher", "Response code: ${response.code()}")
-                    Log.d("IPFetcher", "Response body: $userIpResponse")
-
-                    val ipAddress = userIpResponse?.thingIp
+                    val ipAddress = response.body()?.thingIp
                     if (ipAddress != null && ipAddress.isNotEmpty()) {
-                        Log.d("IPFetcher", "Fetched IP address: $ipAddress")
-                        callback.onIpFetched(ipAddress)
+                        continuation.resume(ipAddress)
                     } else {
-                        Log.d("IPFetcher", "IP address is null or empty, providing default IP")
-                        callback.onIpFetched("default_ip")
+                        continuation.resume("default_ip")
                     }
                 } else {
-                    Log.d("IPFetcher", "Failed to fetch IP address: ${response.errorBody()?.string()}")
-                    callback.onIpFetched("default_ip")
+                    continuation.resume("default_ip")
                 }
             }
 
             override fun onFailure(call: Call<UserIpResponse>, t: Throwable) {
-                Log.d("IPFetcher", "Error: ${t.message}")
-                callback.onIpFetched("default_ip")
+                continuation.resume("default_ip")
             }
         })
     }
+}
+
 
 
 

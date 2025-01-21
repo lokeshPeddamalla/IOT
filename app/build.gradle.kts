@@ -1,3 +1,6 @@
+import org.gradle.internal.impldep.org.apache.ivy.util.url.IvyAuthenticator
+import org.gradle.internal.impldep.org.apache.ivy.util.url.IvyAuthenticator.install
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
@@ -21,6 +24,7 @@ android {
         ndk{
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
+
     }
 
     buildTypes {
@@ -56,6 +60,9 @@ chaquopy {
     }
     defaultConfig {
         buildPython("/usr/bin/python3")
+        pip{
+            install("cryptography")
+        }
     }
 }
 dependencies {
@@ -67,7 +74,7 @@ dependencies {
     //noinspection UseTomlInstead
     implementation ("com.microsoft.sqlserver:mssql-jdbc:11.2.0.jre8")
    implementation(files("libs/jtds-1.3.1.jar"))
-   // implementation (libs.jtds)
+   // implementation 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
