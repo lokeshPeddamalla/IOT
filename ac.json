@@ -1,0 +1,31 @@
+{
+        "DEVICE" : {
+                  "NAME":"Air conditioner",
+                  "DOMAIN":"Smart home",
+                  "INSTALLATION":"Fixed"
+                },
+        "MODE" : {
+                   "COOL" : {"Temperature" : [16,"C"],
+                              "Fan" : ["medium"]
+                             },
+                   "DRY" : {"Temperature" : [25,"C"],
+                            "Fan" : ["high"]
+                           }                       
+                },
+        "CONTROL" : {
+                  "Temperature" : {
+                                   "NUMERIC":{
+                                             "RANGE":[14,30,0.5,"+","C"]
+                                             }
+                                  },                                 
+                  "Fan" : { 
+                           "STRING":{"OPTION":["low","medium","high"]}
+                         },      
+                  "Swing" : { 
+                            "BOOLEAN":["up","down"]
+                           },     
+                  "Power" : { 
+                            "BOOLEAN":["on","off"]
+                           } 
+                }
+        }
