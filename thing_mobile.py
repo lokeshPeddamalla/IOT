@@ -3,6 +3,7 @@ import select
 import hashlib
 from decryptMessage_test import decrypt_message
 from encryptMessage_test import encrypt_message
+import subprocess
 
 def compute_md5_of_data(message):
 	message = message.encode('utf-8')
@@ -15,7 +16,7 @@ def compute_md5_of_data(message):
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 host = "0.0.0.0"
-port = 12345
+port = 12346
 
 mobile_ip = []
 with open('ip_address.txt', 'r') as file:
@@ -45,7 +46,7 @@ while True:
 			try:
 				read_to_read, _, _ = select.select([client_socket], [], [], 5)
 				encrypted_message = client_socket.recv(1024).decode('utf-8')
-				#print(f'Received data: {encrypted_message}')
+				print(f'Received data: {encrypted_message}')
 				
 				#Decrypted the message
 				privateKey_file = open('ThingPrivateKey.txt', 'r')
@@ -58,17 +59,19 @@ while True:
 				#Split the received message to data and checksum
 				md5_combined_data = decrypted_message.decode('utf-8')
 				md5_combined_data = md5_combined_data.split(',')
-				#print(f'data split {md5_combined_data}')
+				print(f'data split {md5_combined_data}')
 				data = md5_combined_data[0].strip()
 				data_split = data.split('+')
 			
 				data_message = data_split[0].strip()
 				data_message = data_message.split(':')
 				data_message = data_message[1].strip()
+				print(f'data is {data_message}')
 			
 				data_ip = data_split[1].strip()
 				data_ip = data_ip.split(':')
 				data_ip = data_ip[1].strip()
+				print(f'Ip us {data_ip}')
 			
 				print(data)
 				md5_data = md5_combined_data[1]
@@ -78,6 +81,7 @@ while True:
 				print(f'{md5_verify} and {md5_data}')
 			
 				if (md5_verify == md5_data):
+					print('Enterned Checksum verification')
 					count = 0
 					#Send the response and checksum
 					thing_ip = ''
@@ -87,8 +91,8 @@ while True:
 						content = content[-1]
 						thing_ip = content.strip()
 		
-					response = 'Hello Mobile'
-					total_message = f'Message:{response}+IP:{thing_ip}'
+					response = 'ACK'
+					total_message = f'{response}+{thing_ip}'
 					response_checksum = compute_md5_of_data(total_message)
 					responding_message = f'{total_message},{response_checksum}'.encode('utf-8')
 		
@@ -112,8 +116,8 @@ while True:
 						content = content[-1]
 						thing_ip = content.strip()
 						
-					response = 'Hello Mobile'
-					total_message = f'Message:{response}+IP:{thing_ip}'
+					response = 'ACK'
+					total_message = f'{response}+{thing_ip}'
 					response_checksum = compute_md5_of_data(total_message)
 					responding_message = f'{total_message},{response_checksum}'.encode('utf-8')
 		
@@ -125,10 +129,14 @@ while True:
 					client_socket.send(encrypted_response.encode('utf-8'))
 				else:
 					client_socket.close()
+				    #server_socket.close()
+					subprocess.run(["sudo", "-E", "/home/veman/Desktop/py3.9testenv/bin/python3", "thing_bluetooth.py"], check=True)
 					print(f'No Acknowledgement Received on IP switching to Bluetooth')
 					break
 					
 	
 		client_socket.close()
+		#server_socket.close()
 		print(f'Trying Bluetooth Communication')
+		subprocess.run(["sudo", "-E", "/home/veman/Desktop/py3.9testenv/bin/python3", "thing_bluetooth.py"], check=True)
 		#Bluetooth Communication
