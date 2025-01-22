@@ -1,11 +1,17 @@
 package com.example.iot1
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -13,6 +19,8 @@ import android.view.View
 import android.widget.*
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.google.gson.Gson
@@ -44,9 +52,10 @@ class DisplayThingActivity : AppCompatActivity() {
     private lateinit var bluetoothSocket: BluetoothSocket
     private var outputStream: OutputStream? = null
     private var inputStream: InputStream? = null
-    private val deviceAddress = "B8:27:EB:2B:90:22"
     private val uuid: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34DB")
     private var isConnected = false
+    private var deviceAddress: String? = null // To store the dynamically retrieved MAC address
+
 
     private val validEndKeywords = listOf(
         "S", "START", "OPTIONAL", "SENSOR", "ACTUATOR", "DEVICE", "OEM", "MODE", "LOCATION", "D", "NAME", "DOMAIN",
@@ -68,11 +77,6 @@ class DisplayThingActivity : AppCompatActivity() {
         setContentView(R.layout.activity_display_thing)
         rpiIp = intent.getStringExtra("ip_address") ?: throw IllegalArgumentException("IP address must be provided")
 
-        if (isNetworkAvailable()){
-            connectionToThing(rpiIp)
-        }else{
-            connectToDevice()
-        }
         Log.d("lokesh", rpiIp)
         val json = loadJSONFromFile("/storage/emulated/0/Android/data/com.example.iot1/files/manifest.json")
         if (json.isEmpty()) {
@@ -82,6 +86,7 @@ class DisplayThingActivity : AppCompatActivity() {
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(this))  // Initialize Python with the context
         }
+        connectionToThing(rpiIp)
 
         val gson = Gson()
         val jsonObject = gson.fromJson(json, JsonObject::class.java)
@@ -93,28 +98,6 @@ class DisplayThingActivity : AppCompatActivity() {
         processJsonObject(JSONObject(jsonObject.toString()))
         addUIElements(JSONObject(jsonObject.toString()))
     }
-
-    @SuppressLint("MissingPermission")
-    private fun connectToDevice() {
-        val device: BluetoothDevice = bluetoothAdapter.getRemoteDevice(deviceAddress)
-        Log.d("Lokesh", "Device unable to connect $device")
-        try {
-            bluetoothSocket = device.createRfcommSocketToServiceRecord(uuid)
-            Log.d("Lokesh", "Device unable to connect $bluetoothSocket")
-            bluetoothSocket.connect()
-            outputStream = bluetoothSocket.outputStream
-            inputStream = bluetoothSocket.inputStream
-            isConnected = true
-        } catch (e: IOException) {
-            e.printStackTrace()
-            isConnected = false
-        }
-    }
-    private fun isNetworkAvailable(): Boolean {
-        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        return connectivityManager.activeNetworkInfo?.isConnected == true
-    }
-
     private fun loadJSONFromFile(filePath: String): String {
         val file = File(filePath)
         val stringBuilder = StringBuilder()
@@ -405,74 +388,213 @@ class DisplayThingActivity : AppCompatActivity() {
         }.start()
     }
 
+    //    private fun sendToRpi(data: String) {
+    //        Thread {
+    //            var success = false
+    //            val timeoutMillis = 15000
+    //            val startTime = System.currentTimeMillis()
+    //            val androidIp = getLocalIpAddress()
+    //            Log.d("Lokesh", androidIp)
+    //            val DataAndIp = "Data:$data+IP:$androidIp"
+    //            val message = generateChecksum(DataAndIp)
+    //            val DataAndIpAndChecksum = "$DataAndIp,$message"
+    //            val encryptedMessage = encryptMessageWithPython(DataAndIpAndChecksum)
+    //
+    //            try {
+    //                if (socket == null || socket!!.isClosed) {
+    //                    Log.d("Connection", "No active connection. Call connectionToThing() first.")
+    //                    setupBluetooth() // Ensure Bluetooth setup is complete
+    //                    Log.d("Lokesh", "setup done")
+    //                    checkBluetoothPermissions() // Check for Bluetooth permissions
+    //                    Log.d("Lokesh", "bluetooth permissions checked")
+    //                    registerBluetoothReceiver() // Register the Bluetooth receiver
+    //                    Log.d("Lokesh", "registered")
+    //                    sendViaBluetooth(data) // Send data via Bluetooth
+    //                } else {
+    //                    try {
+    //                        outputStream?.write(encryptedMessage?.toByteArray(Charsets.UTF_8))
+    //                        Log.d("Lokesh", "sent message: $encryptedMessage")
+    //                        outputStream?.flush()
+    //
+    //                        val responseBytes = ByteArray(1024)
+    //                        socket?.soTimeout = 5000 // Set timeout for acknowledgment
+    //                        val bytesRead = try {
+    //                            inputStream?.read(responseBytes) ?: -1
+    //                        } catch (e: SocketTimeoutException) {
+    //                            -1 // Timeout occurred
+    //                        }
+    //
+    //                        val receivedMessage = if (bytesRead > 0)
+    //                            String(responseBytes, 0, bytesRead, Charsets.UTF_8)
+    //                        else
+    //                            ""
+    //
+    //                        if (receivedMessage.isNotEmpty()) {
+    //                            Log.d("ACKDecryption", "Received acknowledgment via Wi-Fi: $receivedMessage")
+    //                            val decryptedMessage = decryptMessageWithPython(receivedMessage)
+    //                            Log.d("ACKDecryption", "$decryptedMessage")
+    //                            val parts = decryptedMessage!!.split("+")
+    //                            if (parts.size == 2) {
+    //                                val message = parts[0]
+    //                                Log.d("ACKDecryption", "message is: $message")
+    //                                val ipAndChecksum = parts[1]
+    //                                val ipAndChecksumSplit = ipAndChecksum.split(",")
+    //                                if (ipAndChecksumSplit.size == 2) {
+    //                                    val ip = ipAndChecksumSplit[0]
+    //                                    val checksum = ipAndChecksumSplit[1]
+    //                                    Log.d("ACKDecryption", "ip is: $ip")
+    //                                    Log.d("ACKDecryption", "checksum is: $checksum")
+    //
+    //                                    val generateChecksum = generateChecksum("$message+$ip")
+    //                                    if (checksum == generateChecksum) {
+    //                                        Log.d("ACKDecryption", "Checksum matched")
+    //                                    }
+    //                                }
+    //                            }
+    //                            success = true
+    //                        }
+    //                    } catch (e: Exception) {
+    //                        Log.d("Lokesh", "Error during Wi-Fi communication: ${e.message}")
+    //                    }
+    //
+    //                    // If Wi-Fi communication fails or no acknowledgment is received
+    //                    if (!success && (System.currentTimeMillis() - startTime) >= timeoutMillis) {
+    //                        Log.d("Connection", "No acknowledgment received for 15 seconds. Switching to Bluetooth...")
+    //                        try {
+    //                            socket?.close() // Close the current socket
+    //                        } catch (e: Exception) {
+    //                            Log.d("Lokesh", "Error closing Wi-Fi socket: ${e.message}")
+    //                        }
+    //
+    //                        // Switch to Bluetooth communication
+    //                        try {
+    //                            setupBluetooth()
+    //                            Log.d("Lokesh", "Bluetooth setup complete")
+    //                            checkBluetoothPermissions()
+    //                            Log.d("Lokesh", "Bluetooth permissions checked")
+    //                            registerBluetoothReceiver()
+    //                            Log.d("Lokesh", "Bluetooth receiver registered")
+    //                            sendViaBluetooth(data)
+    //                        } catch (e: Exception) {
+    //                            Log.d("Lokesh", "Error during Bluetooth communication setup: ${e.message}")
+    //                        }
+    //                    }
+    //                }
+    //            } catch (e: Exception) {
+    //                Log.d("Lokesh", "Error sending data: ${e.message}")
+    //            }
+    //        }.start()
+    //    }
     private fun sendToRpi(data: String) {
         Thread {
-            var success = false
             val timeoutMillis = 15000
             val startTime = System.currentTimeMillis()
             val androidIp = getLocalIpAddress()
-            Log.d("Lokesh", androidIp)
-            val DataAndIp = "Data:$data+IP:$androidIp"
-            val message = generateChecksum(DataAndIp)
-            val DataAndIpAndChecksum = "$DataAndIp,$message"
-            val encryptedMessage = encryptMessageWithPython(DataAndIpAndChecksum)
+            Log.d("Lokesh", "Local IP: $androidIp")
+            val dataAndIp = "Data:$data+IP:$androidIp"
+            val message = generateChecksum(dataAndIp)
+            val dataAndIpAndChecksum = "$dataAndIp,$message"
+            val encryptedMessage = encryptMessageWithPython(dataAndIpAndChecksum)
 
+            var success = false
             try {
                 if (socket == null || socket!!.isClosed) {
-                    Log.d("Connection", "No active connection. Call connectionToThing() first.")
-                    //connectToBluetooth()
+                    Log.d("Lokesh", "No active connection. Call connectToBluetooth() first.")
+                    setupBluetooth()
+                    Log.d("Lokesh", "setup done")
+                    connectToBluetoothDevice()
+                   // checkBluetoothPermissions()
+                    Log.d("Lokesh", "connected bluetooth permissions")
+                    registerBluetoothReceiver()
+                    Log.d("Lokesh", "registerbluetooth receiver")
                     sendViaBluetooth(data)
-                } else {
-                    outputStream?.write(encryptedMessage?.toByteArray(Charsets.UTF_8))
-                    Log.d("Lokesh","sent message: $encryptedMessage")
-                    outputStream?.flush()
-
-                    val responseBytes = ByteArray(1024)
-                    socket?.soTimeout = 5000  // Set timeout for acknowledgment
-                    val bytesRead = try {
-                        inputStream?.read(responseBytes) ?: -1
-                    } catch (e: SocketTimeoutException) {
-                        -1 // Timeout occurred
-                    }
-
-                    val receivedMessage = if (bytesRead > 0)
-                        String(responseBytes, 0, bytesRead, Charsets.UTF_8)
-                    else
-                        ""
-                    if (receivedMessage.isNotEmpty()) {
-                        Log.d("ACKDecryption", "Received acknowledgment via Wi-Fi: $receivedMessage")
-                        val decryptedMessage =  decryptMessageWithPython(receivedMessage)
-                        Log.d("ACKDecryption","$decryptedMessage")
-                        val parts = decryptedMessage!!.split("+")
-                        if (parts.size ==2){
-                            val message = parts[0]
-                            Log.d("ACKDecryption","message is: $message")
-                            val ipAndChecksum = parts[1]
-                            val ipAndChecksumSplit = ipAndChecksum.split(",")
-                            if (ipAndChecksumSplit.size == 2){
-                                val ip = ipAndChecksumSplit[0]
-                                val checksum = ipAndChecksumSplit[1]
-                                Log.d("ACKDecryption","ip is: $ip")
-                                Log.d("ACKDecryption","checksum is: $checksum")
-
-                                val generateChecksum = generateChecksum("$message+$ip")
-                                if (checksum == generateChecksum){
-                                    Log.d("ACKDecryption","Checksum matched")
-                                }
-                            }
-                        }
-                        success = true
-                    }
+                   // throw IOException("No active socket connection")
                 }
-                // Check if 15 seconds passed without success
-                if (!success && (System.currentTimeMillis() - startTime) >= timeoutMillis) {
-                    Log.d("Connection", "No acknowledgment received for 15 seconds. Switching to Bluetooth...")
+
+                // Send encrypted message over Wi-Fi
+                outputStream?.write(encryptedMessage?.toByteArray(Charsets.UTF_8))
+                Log.d("Lokesh", "Sent message: $encryptedMessage")
+                outputStream?.flush()
+
+                // Read response
+                val responseBytes = ByteArray(1024)
+                socket?.soTimeout = 5000  // Set timeout for acknowledgment
+                val bytesRead = try {
+                    inputStream?.read(responseBytes) ?: -1
+                } catch (e: SocketTimeoutException) {
+                    -1 // Timeout occurred
+                }
+
+                if (bytesRead > 0) {
+                    val receivedMessage = String(responseBytes, 0, bytesRead, Charsets.UTF_8)
+                    Log.d("ACKDecryption", "Received acknowledgment via Wi-Fi: $receivedMessage")
+                    val decryptedMessage = decryptMessageWithPython(receivedMessage)
+                    Log.d("ACKDecryption", "Decrypted message: $decryptedMessage")
+                    success = handleAcknowledgment(decryptedMessage)
+                } else {
+                    Log.d("Lokesh", "No acknowledgment received via Wi-Fi.")
                 }
             } catch (e: Exception) {
-                Log.d("Lokesh", "Error sending data: ${e.message}")
+                Log.d("Lokesh", "Error during Wi-Fi communication: ${e.message}")
+            } finally {
+                if (!success) {
+                    if (System.currentTimeMillis() - startTime >= timeoutMillis) {
+                        Log.d("Connection", "No acknowledgment received for 15 seconds. Switching to Bluetooth...")
+                    } else {
+                        Log.d("Connection", "Wi-Fi communication failed. Switching to Bluetooth...")
+                    }
+
+                    // Close socket and attempt Bluetooth communication
+                    try {
+                        socket?.close()
+                    } catch (e: IOException) {
+                        Log.d("Lokesh", "Error closing socket: ${e.message}")
+                    }
+
+                    // Initiate Bluetooth communication
+//                    try {
+//                        setupBluetooth()
+//                        Log.d("Lokesh", "Bluetooth setup done.")
+//                        checkBluetoothPermissions()
+//                        Log.d("Lokesh", "Bluetooth permissions checked.")
+//                        registerBluetoothReceiver()
+//                        Log.d("Lokesh", "Bluetooth receiver registered.")
+//                        sendViaBluetooth(data)
+//                    } catch (btEx: Exception) {
+//                        Log.d("Lokesh", "Error during Bluetooth setup: ${btEx.message}")
+//                    }
+                }
             }
         }.start()
     }
+
+    private fun handleAcknowledgment(decryptedMessage: String?): Boolean {
+        if (decryptedMessage != null) {
+            val parts = decryptedMessage.split("+")
+            if (parts.size == 2) {
+                val message = parts[0]
+                Log.d("ACKDecryption", "Message: $message")
+                val ipAndChecksum = parts[1]
+                val ipAndChecksumSplit = ipAndChecksum.split(",")
+                if (ipAndChecksumSplit.size == 2) {
+                    val ip = ipAndChecksumSplit[0]
+                    val checksum = ipAndChecksumSplit[1]
+                    Log.d("ACKDecryption", "IP: $ip")
+                    Log.d("ACKDecryption", "Checksum: $checksum")
+
+                    val generatedChecksum = generateChecksum("$message+$ip")
+                    if (checksum == generatedChecksum) {
+                        Log.d("ACKDecryption", "Checksum matched.")
+                        return true
+                    } else {
+                        Log.d("ACKDecryption", "Checksum mismatch.")
+                    }
+                }
+            }
+        }
+        return false
+    }
+
     private fun sendViaBluetooth(temperature: String) {
         Thread {
             var attempt = 0
@@ -537,6 +659,93 @@ class DisplayThingActivity : AppCompatActivity() {
                 Log.d("Lokesh", "Failed to send data after $MAX_RETRIES attempts via Bluetooth")
             }
         }.start()
+    }
+    @SuppressLint("MissingPermission")
+    private fun setupBluetooth() {
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        // Check if Bluetooth is enabled
+        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
+            Toast.makeText(this, "Please enable Bluetooth", Toast.LENGTH_SHORT).show()
+            Log.d("Lokesh","bluetooth is enabled")
+            finish()
+        }
+    }
+    @SuppressLint("InlinedApi")
+    private fun checkBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { // Only needed on Android 12 (API level 31) and above
+            // Check if BLUETOOTH_CONNECT and BLUETOOTH_SCAN permissions are granted
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+
+                // Request both permissions at once
+                ActivityCompat.requestPermissions(this, arrayOf(
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN), 1)
+            } else {
+                // Permissions are already granted, proceed with Bluetooth connection
+                connectToBluetoothDevice()
+            }
+        } else {
+            // For devices running below Android 12, no need to request these permissions
+            connectToBluetoothDevice()
+        }
+    }
+    @SuppressLint("MissingPermission")
+    private fun connectToBluetoothDevice() {
+        val device: BluetoothDevice = bluetoothAdapter.getRemoteDevice(deviceAddress)
+
+        try {
+            // Create an RFCOMM socket to connect to the device
+            bluetoothSocket = device.createRfcommSocketToServiceRecord(uuid)
+
+            // Cancel any ongoing discovery to optimize connection
+            bluetoothAdapter.cancelDiscovery()
+
+            // Connect to the remote device
+            bluetoothSocket.connect()
+
+            // Get the input and output streams
+            outputStream = bluetoothSocket.outputStream
+            inputStream = bluetoothSocket.inputStream
+
+            isConnected = true
+            Log.d("Lokesh", "Connected to Bluetooth device")
+
+        } catch (e: IOException) {
+            e.printStackTrace()
+            isConnected = false
+            Log.e("Lokesh", "Could not connect to Bluetooth device: ${e.message}")
+        }
+    }
+    private val bluetoothConnectionReceiver = object : BroadcastReceiver() {
+        @SuppressLint("MissingPermission")
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothDevice.ACTION_ACL_CONNECTED) {
+                val device: BluetoothDevice? = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                if (device != null) {
+                    deviceAddress = device.address
+                    Log.d("Lokesh", "Connected Device MAC: $deviceAddress")
+                    Toast.makeText(context, "Connected to ${device.name}", Toast.LENGTH_SHORT).show()
+                    connectToBluetoothDevice() // Initiate connection once a device is connected
+                }
+            }
+        }
+    }
+    private fun registerBluetoothReceiver() {
+        val filter = IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED)
+        registerReceiver(bluetoothConnectionReceiver, filter)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(bluetoothConnectionReceiver)
+        try {
+            if (isConnected) {
+                bluetoothSocket.close()
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
     }
     private fun generateChecksum(data: String): String {
         try {

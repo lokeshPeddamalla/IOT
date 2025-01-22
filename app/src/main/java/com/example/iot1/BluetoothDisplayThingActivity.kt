@@ -100,7 +100,8 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
             addUIElements(JSONObject(jsonObject.toString()))
 
         }, 3000)
-    } @SuppressLint("MissingPermission")
+    }
+    @SuppressLint("MissingPermission")
     private fun setupBluetooth() {
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
 
