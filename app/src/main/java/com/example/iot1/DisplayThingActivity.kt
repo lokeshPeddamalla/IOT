@@ -594,35 +594,27 @@ class DisplayThingActivity : AppCompatActivity() {
         }
         return false
     }
-
     private fun sendViaBluetooth(temperature: String) {
         Thread {
             var attempt = 0
             var success = false
-
             // Call Python to generate checksum
             val checksum = generateChecksum(temperature)
-
             val androidIp = getLocalIpAddress() // Function to retrieve device IP
             val messageWithChecksum = "\"$temperature,$androidIp\":$checksum"
-
             // Encrypt the message before sending
             val encryptedMessage = encryptMessageWithPython(messageWithChecksum)
-
             if (encryptedMessage == null) {
                 Log.d("Lokesh", "Encryption failed. Not sending data via Bluetooth.")
                 return@Thread
             }
-
             while (attempt < MAX_RETRIES && !success) {
                 try {
                     outputStream?.write("$encryptedMessage".toByteArray(Charsets.UTF_8))
                     outputStream?.flush()
-
                     // Assuming we receive the acknowledgment message from Bluetooth
                     val responseBytes = ByteArray(1024)
                     val bytesRead = inputStream?.read(responseBytes) ?: -1 // Safely read from inputStream
-
                     if (bytesRead > 0) {
                         val receivedMessage = String(responseBytes, 0, bytesRead, Charsets.UTF_8)
 
@@ -634,7 +626,6 @@ class DisplayThingActivity : AppCompatActivity() {
                         } else {
                             Log.d("Lokesh", "Decryption of acknowledgment failed via Bluetooth.")
                         }
-
                         success = true
                         Log.i("Lokesh", "Data sent successfully via Bluetooth (encrypted): $encryptedMessage")
                         Log.i("Lokesh", "Received acknowledgment via Bluetooth: $receivedMessage")
@@ -644,7 +635,6 @@ class DisplayThingActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     Log.d("Lokesh", "Error sending data via Bluetooth: ${e.message}")
                 }
-
                 attempt++
                 if (!success) {
                     try {

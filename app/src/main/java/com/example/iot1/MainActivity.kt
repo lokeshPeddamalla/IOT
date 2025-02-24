@@ -22,6 +22,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (isLoggedIn()) {
+            navigateToAvailableThingsActivity()
+            return
+        }
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -60,6 +65,7 @@ class MainActivity : AppCompatActivity() {
                         val result = response.body()
                         if (result?.valid == true) {
                             Log.d("Validation", "User is valid (online)")
+                            saveLoginState()
                             navigateToAvailableThingsActivity()
                         } else {
                             Log.d("Validation", "Invalid user (online)")
@@ -93,11 +99,22 @@ class MainActivity : AppCompatActivity() {
 
         if (userDetails["username"] == hashedUser && userDetails["password"] == hashedPassword) {
             Log.d("Validation", "User is valid (offline)")
+            saveLoginState()
             navigateToAvailableThingsActivity()
         } else {
             Log.d("Validation", "Invalid user (offline) $username, $password")
             Toast.makeText(this, "Invalid Credentials", Toast.LENGTH_SHORT).show()
         }
+    }
+    private fun saveLoginState() {
+        val sharedPreferences = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+        val editor = sharedPreferences.edit()
+        editor.putBoolean("isLoggedIn", true)
+        editor.apply()
+    }
+    private fun isLoggedIn(): Boolean {
+        val sharedPreferences = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+        return sharedPreferences.getBoolean("isLoggedIn", false)
     }
 
     private fun navigateToAvailableThingsActivity() {
