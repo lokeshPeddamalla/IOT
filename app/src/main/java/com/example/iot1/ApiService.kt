@@ -34,7 +34,7 @@ interface ApiService {
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://10.203.5.79:5000/"
+    private const val BASE_URL = "http://10.203.6.97:5000/"
     val instance: ApiService by lazy {
         // Setup logging interceptor
         val logging = HttpLoggingInterceptor().apply {

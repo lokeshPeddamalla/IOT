@@ -86,7 +86,7 @@ class BluetoothDisplayThingActivity : AppCompatActivity() {
 //            bluetoothDeviceAddress = intent.getStringExtra("bluetooth_device_address")
 //                ?: throw IllegalArgumentException("Bluetooth device address must be provided")
 //            Log.d("Lokesh", bluetoothDeviceAddress)
-            bluetoothDeviceAddress = "B8:27:EB:2B:90:22"
+            bluetoothDeviceAddress = "B8:27:EB:D3:65:ED"
 
             // Load and parse JSON
             val json = loadJSONFromFile("/storage/emulated/0/Android/data/com.example.iot1/files/manifest.json")

@@ -15,8 +15,11 @@ import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat.getSystemService
+import androidx.core.content.ContextCompat.startActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.databinding.DataBindingUtil.setContentView
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.example.iot1.databinding.ActivityThingDetailsBinding
@@ -204,6 +207,7 @@ class ThingDetailsActivity : AppCompatActivity() {
                 // Prepare the message to send to the server
                 val androidIp = getLocalIpAddress()
                 val message1 = "'send_file',$androidIp"
+                Log.d("MobileIpAddr", androidIp)
                 val checksum = generateChecksum(message1)
                 Log.d("checksum", "$checksum")
                 val message = "$message1:$checksum@$publicKey"
